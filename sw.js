@@ -1,4 +1,4 @@
-const CACHE_NAME = 'central-ibc-v2';
+const CACHE_NAME = 'central-ibc-v3';
 const FILES = [
   './',
   './index.html',
@@ -11,7 +11,7 @@ self.addEventListener('install', e => {
   e.waitUntil(
     caches.open(CACHE_NAME).then(cache => cache.addAll(FILES))
   );
-  self.skipWaiting();
+  self.skipWaiting(); // força ativação imediata
 });
 
 self.addEventListener('activate', e => {
@@ -20,7 +20,7 @@ self.addEventListener('activate', e => {
       Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
     )
   );
-  self.clients.claim();
+  self.clients.claim(); // assume controle de todas as abas
 });
 
 self.addEventListener('fetch', e => {
