@@ -1,0 +1,1002 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inventário da Igreja</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --gold: #C9A84C;
+    --gold-light: #E8C97A;
+    --dark: #1A1A2E;
+    --dark2: #16213E;
+    --dark3: #0F3460;
+    --card: #1e2a45;
+    --text: #EEE8D5;
+    --muted: #8899AA;
+    --green: #4CAF82;
+    --red: #E05C5C;
+    --orange: #E07B2A;
+    --blue: #4A90D9;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--dark);
+    color: var(--text);
+    min-height: 100vh;
+  }
+  /* HEADER */
+  header {
+    background: linear-gradient(135deg, var(--dark2), var(--dark3));
+    border-bottom: 2px solid var(--gold);
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 70px;
+    position: sticky; top: 0; z-index: 100;
+    box-shadow: 0 4px 30px rgba(0,0,0,0.5);
+  }
+  .logo {
+    display: flex; align-items: center; gap: 12px;
+  }
+  .logo-icon { font-size: 28px; }
+  .logo-text { font-family: 'Playfair Display', serif; font-size: 20px; color: var(--gold); line-height:1.1; }
+  .logo-sub { font-size: 11px; color: var(--muted); font-weight: 300; letter-spacing: 2px; text-transform: uppercase; }
+  nav { display: flex; gap: 4px; }
+  nav button {
+    background: none; border: none; color: var(--muted);
+    padding: 8px 14px; border-radius: 8px; cursor: pointer;
+    font-family: 'DM Sans', sans-serif; font-size: 13px;
+    transition: all 0.2s;
+  }
+  nav button:hover { background: rgba(201,168,76,0.15); color: var(--gold); }
+  nav button.active { background: rgba(201,168,76,0.2); color: var(--gold); font-weight: 600; }
+
+  /* MAIN */
+  main { padding: 28px 24px; max-width: 1100px; margin: 0 auto; }
+
+  /* TABS */
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* STATS */
+  .stats-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px; margin-bottom: 28px;
+  }
+  .stat-card {
+    background: var(--card);
+    border: 1px solid rgba(201,168,76,0.2);
+    border-radius: 14px; padding: 20px;
+    display: flex; align-items: center; gap: 14px;
+    transition: transform 0.2s;
+  }
+  .stat-card:hover { transform: translateY(-2px); }
+  .stat-icon { font-size: 32px; }
+  .stat-num { font-family: 'Playfair Display', serif; font-size: 26px; color: var(--gold); }
+  .stat-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+
+  /* SECTION TITLE */
+  .section-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 20px;
+  }
+  .section-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 22px; color: var(--gold);
+    display: flex; align-items: center; gap: 10px;
+  }
+
+  /* BTN */
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 18px; border-radius: 10px; border: none;
+    cursor: pointer; font-family: 'DM Sans', sans-serif;
+    font-size: 14px; font-weight: 500; transition: all 0.2s;
+  }
+  .btn-gold { background: var(--gold); color: var(--dark); }
+  .btn-gold:hover { background: var(--gold-light); transform: translateY(-1px); }
+  .btn-green { background: var(--green); color: #fff; }
+  .btn-green:hover { opacity: 0.9; }
+  .btn-red { background: var(--red); color: #fff; }
+  .btn-red:hover { opacity: 0.9; }
+  .btn-ghost { background: rgba(255,255,255,0.07); color: var(--text); }
+  .btn-ghost:hover { background: rgba(255,255,255,0.12); }
+  .btn-sm { padding: 6px 12px; font-size: 12px; border-radius: 7px; }
+
+  /* FILTER BAR */
+  .filter-bar {
+    display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;
+  }
+  .filter-bar input, .filter-bar select {
+    background: var(--card); border: 1px solid rgba(201,168,76,0.2);
+    color: var(--text); border-radius: 9px; padding: 9px 14px;
+    font-family: 'DM Sans', sans-serif; font-size: 14px;
+  }
+  .filter-bar input { flex: 1; min-width: 180px; }
+  .filter-bar input:focus, .filter-bar select:focus { outline: none; border-color: var(--gold); }
+
+  /* ITEMS GRID */
+  .items-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 18px;
+  }
+  .item-card {
+    background: var(--card); border: 1px solid rgba(201,168,76,0.15);
+    border-radius: 16px; overflow: hidden;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .item-card:hover { transform: translateY(-3px); box-shadow: 0 8px 30px rgba(0,0,0,0.4); }
+  .item-img {
+    width: 100%; height: 150px; object-fit: cover;
+    background: var(--dark3); display: flex; align-items: center;
+    justify-content: center; font-size: 48px;
+  }
+  .item-img img { width:100%; height:100%; object-fit:cover; }
+  .item-body { padding: 14px; }
+  .item-name { font-weight: 600; font-size: 15px; margin-bottom: 4px; }
+  .item-cat { font-size: 11px; color: var(--gold); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+  .item-info { font-size: 13px; color: var(--muted); margin-bottom: 10px; }
+  .item-qty {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .qty-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600;
+  }
+  .qty-ok { background: rgba(76,175,130,0.2); color: var(--green); }
+  .qty-warn { background: rgba(224,123,42,0.2); color: var(--orange); }
+  .qty-bad { background: rgba(224,92,92,0.2); color: var(--red); }
+  .item-actions { display: flex; gap: 6px; }
+
+  /* MODAL */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7); z-index: 200;
+    align-items: center; justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--dark2); border: 1px solid rgba(201,168,76,0.3);
+    border-radius: 20px; padding: 28px; width: 90%; max-width: 480px;
+    max-height: 90vh; overflow-y: auto;
+  }
+  .modal h2 {
+    font-family: 'Playfair Display', serif; color: var(--gold);
+    margin-bottom: 20px; font-size: 20px;
+  }
+  .form-group { margin-bottom: 16px; }
+  .form-group label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+  .form-group input, .form-group select, .form-group textarea {
+    width: 100%; background: var(--card);
+    border: 1px solid rgba(201,168,76,0.2); color: var(--text);
+    border-radius: 10px; padding: 10px 14px;
+    font-family: 'DM Sans', sans-serif; font-size: 14px;
+  }
+  .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+    outline: none; border-color: var(--gold);
+  }
+  .form-group textarea { resize: vertical; min-height: 80px; }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .modal-footer { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+
+  /* PHOTO UPLOAD */
+  .photo-upload {
+    border: 2px dashed rgba(201,168,76,0.3); border-radius: 12px;
+    padding: 20px; text-align: center; cursor: pointer;
+    transition: border-color 0.2s;
+  }
+  .photo-upload:hover { border-color: var(--gold); }
+  .photo-upload input { display: none; }
+  .photo-preview { width: 100%; max-height: 160px; object-fit: cover; border-radius: 8px; margin-top: 10px; }
+
+  /* TABLE */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th {
+    text-align: left; padding: 12px 16px;
+    font-size: 11px; color: var(--gold);
+    text-transform: uppercase; letter-spacing: 1px;
+    border-bottom: 1px solid rgba(201,168,76,0.2);
+  }
+  td {
+    padding: 12px 16px; font-size: 14px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+  tr:hover td { background: rgba(255,255,255,0.03); }
+
+  /* STATUS BADGE */
+  .badge {
+    display: inline-flex; padding: 3px 10px; border-radius: 20px;
+    font-size: 11px; font-weight: 600;
+  }
+  .badge-green { background: rgba(76,175,130,0.2); color: var(--green); }
+  .badge-orange { background: rgba(224,123,42,0.2); color: var(--orange); }
+  .badge-red { background: rgba(224,92,92,0.2); color: var(--red); }
+  .badge-blue { background: rgba(74,144,217,0.2); color: var(--blue); }
+
+  /* EMPTY STATE */
+  .empty {
+    text-align: center; padding: 60px 20px; color: var(--muted);
+  }
+  .empty-icon { font-size: 56px; margin-bottom: 16px; }
+  .empty p { font-size: 15px; }
+
+  /* REPORT CARDS */
+  .report-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; margin-bottom: 24px; }
+  .report-card {
+    background: var(--card); border: 1px solid rgba(201,168,76,0.15);
+    border-radius: 14px; padding: 20px;
+  }
+  .report-card h3 { font-family:'Playfair Display',serif; color: var(--gold); margin-bottom: 14px; font-size:17px; }
+
+  @media(max-width:600px) {
+    header { padding: 0 14px; }
+    nav button span { display: none; }
+    main { padding: 16px 14px; }
+    .form-row { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">⛪</div>
+    <div>
+      <div class="logo-text">Inventário</div>
+      <div class="logo-sub">Igreja • Utensílios</div>
+    </div>
+  </div>
+  <nav>
+    <button class="active" onclick="showTab('inventario',this)">🍽️ <span>Itens</span></button>
+    <button onclick="showTab('emprestimos',this)">🤝 <span>Empréstimos</span></button>
+    <button onclick="showTab('ocorrencias',this)">⚠️ <span>Ocorrências</span></button>
+    <button onclick="showTab('relatorios',this)">📊 <span>Relatórios</span></button>
+  </nav>
+</header>
+
+<main>
+
+  <!-- ===== INVENTÁRIO ===== -->
+  <div id="tab-inventario" class="tab-content active">
+    <div class="stats-grid" id="statsGrid"></div>
+
+    <!-- CONSULTA RÁPIDA -->
+    <div style="background:var(--card);border:2px solid var(--gold);border-radius:16px;padding:20px;margin-bottom:28px">
+      <div style="font-family:'Playfair Display',serif;color:var(--gold);font-size:17px;margin-bottom:12px">🔎 Consulta Rápida — "Esse item está disponível?"</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <input type="text" id="consultaInput" placeholder="Digite o nome do item..." oninput="consultaRapida()"
+          style="flex:1;min-width:200px;background:var(--dark2);border:1px solid rgba(201,168,76,0.3);color:var(--text);border-radius:10px;padding:10px 14px;font-family:'DM Sans',sans-serif;font-size:15px">
+      </div>
+      <div id="consultaResultado" style="margin-top:14px"></div>
+    </div>
+
+    <div class="section-header">
+      <div class="section-title">🍽️ Itens Cadastrados</div>
+      <button class="btn btn-gold" onclick="openModal('addItem')">＋ Novo Item</button>
+    </div>
+    <div class="filter-bar">
+      <input type="text" id="searchItems" placeholder="🔍 Buscar item..." oninput="renderItems()">
+      <select id="filterCat" onchange="renderItems()">
+        <option value="">Todas categorias</option>
+        <option value="Panela">Panelas</option>
+        <option value="Prato">Pratos</option>
+        <option value="Copo">Copos</option>
+        <option value="Tigela">Tigelas</option>
+        <option value="Outro">Outros</option>
+      </select>
+      <select id="filterStatus" onchange="renderItems()">
+        <option value="">Todos status</option>
+        <option value="ok">Disponível</option>
+        <option value="baixo">Quantidade baixa</option>
+      </select>
+    </div>
+    <div class="items-grid" id="itemsGrid"></div>
+  </div>
+
+  <!-- ===== EMPRÉSTIMOS ===== -->
+  <div id="tab-emprestimos" class="tab-content">
+    <div class="section-header">
+      <div class="section-title">🤝 Empréstimos & Retiradas</div>
+      <button class="btn btn-gold" onclick="openModal('addEmprestimo')">＋ Registrar Retirada</button>
+    </div>
+    <div class="filter-bar">
+      <input type="text" id="searchEmp" placeholder="🔍 Buscar..." oninput="renderEmprestimos()">
+      <select id="filterEmpStatus" onchange="renderEmprestimos()">
+        <option value="">Todos</option>
+        <option value="aberto">Em aberto</option>
+        <option value="devolvido">Devolvido</option>
+      </select>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Item</th><th>Qtd</th><th>Responsável</th><th>Saída</th><th>Prev. Retorno</th><th>Status</th><th>Ações</th></tr>
+        </thead>
+        <tbody id="emprestimosBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ===== OCORRÊNCIAS ===== -->
+  <div id="tab-ocorrencias" class="tab-content">
+    <div class="section-header">
+      <div class="section-title">⚠️ Danos & Perdas</div>
+      <button class="btn btn-gold" onclick="openModal('addOcorrencia')">＋ Registrar Ocorrência</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Item</th><th>Tipo</th><th>Qtd</th><th>Descrição</th><th>Data</th><th>Registrado por</th></tr>
+        </thead>
+        <tbody id="ocorrenciasBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ===== RELATÓRIOS ===== -->
+  <div id="tab-relatorios" class="tab-content">
+    <div class="section-title" style="margin-bottom:20px">📊 Relatórios de Inventário</div>
+    <div class="report-grid">
+      <div class="report-card">
+        <h3>📦 Resumo por Categoria</h3>
+        <div id="relCategorias"></div>
+      </div>
+      <div class="report-card">
+        <h3>🤝 Empréstimos em Aberto</h3>
+        <div id="relEmprestimos"></div>
+      </div>
+      <div class="report-card">
+        <h3>⚠️ Ocorrências Recentes</h3>
+        <div id="relOcorrencias"></div>
+      </div>
+      <div class="report-card">
+        <h3>🔴 Itens com Quantidade Baixa</h3>
+        <div id="relBaixos"></div>
+      </div>
+    </div>
+    <button class="btn btn-ghost" onclick="exportData()">⬇️ Exportar dados (JSON)</button>
+  </div>
+
+</main>
+
+<!-- ===== MODALS ===== -->
+
+<!-- Modal: Adicionar/Editar Item -->
+<div class="modal-overlay" id="modal-addItem">
+  <div class="modal">
+    <h2 id="modalItemTitle">➕ Novo Item</h2>
+    <div class="form-group">
+      <label>Foto do item</label>
+      <div class="photo-upload" onclick="document.getElementById('photoInput').click()">
+        <div id="photoPlaceholder">📷 Clique para adicionar foto</div>
+        <img id="photoPreview" class="photo-preview" style="display:none">
+        <input type="file" id="photoInput" accept="image/*" onchange="previewPhoto(this)">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Nome do item *</label>
+        <input type="text" id="itemNome" placeholder="Ex: Panela grande">
+      </div>
+      <div class="form-group">
+        <label>Categoria *</label>
+        <select id="itemCat">
+          <option value="Panela">🍳 Panela</option>
+          <option value="Prato">🍽️ Prato</option>
+          <option value="Copo">🥤 Copo</option>
+          <option value="Tigela">🥣 Tigela</option>
+          <option value="Outro">📦 Outro</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Quantidade total *</label>
+        <input type="number" id="itemQtd" min="0" placeholder="0">
+      </div>
+      <div class="form-group">
+        <label>Qtd mínima (alerta)</label>
+        <input type="number" id="itemQtdMin" min="0" placeholder="0">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Descrição / Observações</label>
+      <textarea id="itemDesc" placeholder="Tamanho, cor, estado..."></textarea>
+    </div>
+    <div class="form-group">
+      <label>Localização no salão</label>
+      <input type="text" id="itemLocal" placeholder="Ex: Armário 1, Prateleira A">
+    </div>
+    <input type="hidden" id="editItemId">
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('addItem')">Cancelar</button>
+      <button class="btn btn-gold" onclick="saveItem()">💾 Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Empréstimo -->
+<div class="modal-overlay" id="modal-addEmprestimo">
+  <div class="modal">
+    <h2>🤝 Registrar Retirada / Empréstimo</h2>
+    <div class="form-group">
+      <label>Item *</label>
+      <select id="empItem"></select>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Quantidade *</label>
+        <input type="number" id="empQtd" min="1" placeholder="0">
+      </div>
+      <div class="form-group">
+        <label>Responsável *</label>
+        <input type="text" id="empResponsavel" placeholder="Nome">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Data de saída</label>
+        <input type="date" id="empDataSaida">
+      </div>
+      <div class="form-group">
+        <label>Previsão de retorno</label>
+        <input type="date" id="empDataRetorno">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Finalidade / Evento</label>
+      <input type="text" id="empFinalidade" placeholder="Ex: Almoço de domingo">
+    </div>
+    <div class="form-group">
+      <label>Observações</label>
+      <textarea id="empObs" placeholder="..."></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('addEmprestimo')">Cancelar</button>
+      <button class="btn btn-gold" onclick="saveEmprestimo()">💾 Registrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Ocorrência -->
+<div class="modal-overlay" id="modal-addOcorrencia">
+  <div class="modal">
+    <h2>⚠️ Registrar Dano ou Perda</h2>
+    <div class="form-group">
+      <label>Item *</label>
+      <select id="ocItem"></select>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Tipo *</label>
+        <select id="ocTipo">
+          <option value="Dano">🔨 Dano / Quebra</option>
+          <option value="Perda">❌ Perda / Sumiço</option>
+          <option value="Desgaste">🔄 Desgaste</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Quantidade afetada</label>
+        <input type="number" id="ocQtd" min="1" placeholder="0">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Descrição *</label>
+      <textarea id="ocDesc" placeholder="Descreva o que aconteceu..."></textarea>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Data</label>
+        <input type="date" id="ocData">
+      </div>
+      <div class="form-group">
+        <label>Registrado por</label>
+        <input type="text" id="ocResponsavel" placeholder="Seu nome">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('addOcorrencia')">Cancelar</button>
+      <button class="btn btn-red" onclick="saveOcorrencia()">⚠️ Registrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Ver item -->
+<div class="modal-overlay" id="modal-viewItem">
+  <div class="modal">
+    <div id="viewItemContent"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('viewItem')">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== DATA =====
+let data = JSON.parse(localStorage.getItem('igrejainventario') || '{}');
+if (!data.items) data.items = [];
+if (!data.emprestimos) data.emprestimos = [];
+if (!data.ocorrencias) data.ocorrencias = [];
+
+function save() { localStorage.setItem('igrejainventario', JSON.stringify(data)); }
+
+const catEmoji = { Panela:'🍳', Prato:'🍽️', Copo:'🥤', Tigela:'🥣', Outro:'📦' };
+
+// ===== TABS =====
+function showTab(name, btn) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  btn.classList.add('active');
+  if (name === 'relatorios') renderRelatorios();
+  if (name === 'emprestimos') renderEmprestimos();
+  if (name === 'ocorrencias') renderOcorrencias();
+}
+
+// ===== STATS =====
+function renderStats() {
+  const cats = ['Panela','Prato','Copo','Tigela'];
+  const html = cats.map(c => {
+    const total = data.items.filter(i => i.cat === c).reduce((a,i) => a + Number(i.qtd), 0);
+    const count = data.items.filter(i => i.cat === c).length;
+    return `<div class="stat-card">
+      <div class="stat-icon">${catEmoji[c]}</div>
+      <div>
+        <div class="stat-num">${total}</div>
+        <div class="stat-label">${c}s (${count} tipo${count!==1?'s':''})</div>
+      </div>
+    </div>`;
+  }).join('');
+  const empAbertos = data.emprestimos.filter(e => e.status === 'aberto').length;
+  document.getElementById('statsGrid').innerHTML = html + `
+    <div class="stat-card">
+      <div class="stat-icon">🤝</div>
+      <div>
+        <div class="stat-num">${empAbertos}</div>
+        <div class="stat-label">Empréstimos abertos</div>
+      </div>
+    </div>`;
+}
+
+// ===== ITEMS =====
+function renderItems() {
+  renderStats();
+  const search = document.getElementById('searchItems').value.toLowerCase();
+  const cat = document.getElementById('filterCat').value;
+  const status = document.getElementById('filterStatus').value;
+  let items = data.items.filter(i => {
+    const matchSearch = i.nome.toLowerCase().includes(search) || (i.desc||'').toLowerCase().includes(search);
+    const matchCat = !cat || i.cat === cat;
+    const isLow = Number(i.qtd) <= Number(i.qtdMin || 0);
+    const matchStatus = !status || (status === 'ok' && !isLow) || (status === 'baixo' && isLow);
+    return matchSearch && matchCat && matchStatus;
+  });
+
+  if (!items.length) {
+    document.getElementById('itemsGrid').innerHTML = `<div class="empty" style="grid-column:1/-1">
+      <div class="empty-icon">📦</div><p>Nenhum item encontrado.<br>Clique em "Novo Item" para começar!</p>
+    </div>`;
+    return;
+  }
+
+  document.getElementById('itemsGrid').innerHTML = items.map(item => {
+    const qtd = Number(item.qtd);
+    const min = Number(item.qtdMin || 0);
+    let qClass = 'qty-ok', qLabel = '✅ Disponível';
+    if (min > 0 && qtd <= min && qtd > 0) { qClass = 'qty-warn'; qLabel = '⚠️ Estoque baixo'; }
+    if (qtd === 0) { qClass = 'qty-bad'; qLabel = '❌ Sem estoque'; }
+
+    // Empréstimos abertos desse item
+    const empsAbertos = data.emprestimos.filter(e => e.itemId === item.id && e.status === 'aberto');
+    const qtdEmprestada = empsAbertos.reduce((a, e) => a + Number(e.qtd), 0);
+
+    let empInfo = '';
+    if (empsAbertos.length > 0) {
+      const nomes = empsAbertos.map(e => `<span style="display:block;font-size:12px;color:var(--orange);padding:2px 0">🤝 ${e.responsavel} — ${e.qtd} un.</span>`).join('');
+      empInfo = `<div style="background:rgba(224,123,42,0.1);border:1px solid rgba(224,123,42,0.3);border-radius:8px;padding:8px;margin-bottom:8px">
+        <span style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Emprestado (${qtdEmprestada} un.)</span>
+        ${nomes}
+      </div>`;
+    }
+
+    const imgHtml = item.foto
+      ? `<div class="item-img"><img src="${item.foto}" alt="${item.nome}"></div>`
+      : `<div class="item-img">${catEmoji[item.cat] || '📦'}</div>`;
+    return `<div class="item-card">
+      ${imgHtml}
+      <div class="item-body">
+        <div class="item-name">${item.nome}</div>
+        <div class="item-cat">${catEmoji[item.cat]} ${item.cat}</div>
+        ${item.local ? `<div class="item-info">📍 ${item.local}</div>` : ''}
+        <div class="item-qty">
+          <span class="qty-badge ${qClass}">${qLabel}</span>
+          <strong>${qtd} un. disponíveis</strong>
+        </div>
+        ${empInfo}
+        <div class="item-actions">
+          <button class="btn btn-ghost btn-sm" onclick="viewItem('${item.id}')">👁️ Ver</button>
+          <button class="btn btn-ghost btn-sm" onclick="editItem('${item.id}')">✏️</button>
+          <button class="btn btn-red btn-sm" onclick="deleteItem('${item.id}')">🗑️</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function viewItem(id) {
+  const item = data.items.find(i => i.id === id);
+  if (!item) return;
+
+  const empsAbertos = data.emprestimos.filter(e => e.itemId === id && e.status === 'aberto');
+  const empsHistorico = data.emprestimos.filter(e => e.itemId === id && e.status === 'devolvido');
+  const ocItem = data.ocorrencias.filter(o => o.itemId === id);
+
+  const empAbertosHtml = empsAbertos.length
+    ? empsAbertos.map(e => `<div style="background:rgba(224,123,42,0.12);border-left:3px solid var(--orange);border-radius:6px;padding:10px;margin-bottom:8px">
+        <strong style="color:var(--orange)">🤝 ${e.responsavel}</strong><br>
+        <span style="font-size:13px;color:var(--muted)">${e.qtd} unidade(s) • Saiu em ${e.dataSaida}</span>
+        ${e.dataRetorno ? `<br><span style="font-size:13px;color:var(--muted)">Retorno previsto: ${e.dataRetorno}</span>` : ''}
+        ${e.finalidade ? `<br><span style="font-size:13px;color:var(--muted)">📌 ${e.finalidade}</span>` : ''}
+        <br><button class="btn btn-green btn-sm" style="margin-top:8px" onclick="devolverItem('${e.id}');closeModal('viewItem');renderItems()">✅ Marcar como devolvido</button>
+      </div>`).join('')
+    : `<p style="color:var(--green);padding:8px 0">✅ Nenhum empréstimo em aberto</p>`;
+
+  const historicoHtml = empsHistorico.length
+    ? empsHistorico.slice().reverse().slice(0,5).map(e => `<div style="padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.06);font-size:13px">
+        <strong>${e.responsavel}</strong> — ${e.qtd} un.<br>
+        <span style="color:var(--muted)">Saída: ${e.dataSaida} ${e.finalidade ? '• ' + e.finalidade : ''}</span>
+      </div>`).join('')
+    : `<p style="color:var(--muted);font-size:13px">Nenhum histórico.</p>`;
+
+  const ocHtml = ocItem.length
+    ? ocItem.slice().reverse().slice(0,3).map(o => `<div style="padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.06);font-size:13px">
+        <span class="badge ${o.tipo==='Dano'?'badge-orange':'badge-red'}">${o.tipo}</span> ${o.qtd} un.<br>
+        <span style="color:var(--muted)">${o.desc}</span>
+      </div>`).join('')
+    : `<p style="color:var(--muted);font-size:13px">Nenhuma ocorrência.</p>`;
+
+  document.getElementById('viewItemContent').innerHTML = `
+    ${item.foto ? `<img src="${item.foto}" style="width:100%;border-radius:12px;margin-bottom:16px;max-height:200px;object-fit:cover">` : `<div style="font-size:64px;text-align:center;margin-bottom:16px">${catEmoji[item.cat]}</div>`}
+    <h2 style="font-family:'Playfair Display',serif;color:var(--gold);margin-bottom:4px">${item.nome}</h2>
+    <div style="color:var(--muted);font-size:13px;margin-bottom:16px">${catEmoji[item.cat]} ${item.cat}${item.local ? ' • 📍 ' + item.local : ''}</div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px">
+      <div style="background:var(--dark3);border-radius:10px;padding:12px;text-align:center">
+        <div style="font-family:'Playfair Display',serif;font-size:24px;color:var(--gold)">${item.qtd}</div>
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Disponíveis</div>
+      </div>
+      <div style="background:var(--dark3);border-radius:10px;padding:12px;text-align:center">
+        <div style="font-family:'Playfair Display',serif;font-size:24px;color:var(--orange)">${empsAbertos.reduce((a,e)=>a+Number(e.qtd),0)}</div>
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Emprestados</div>
+      </div>
+    </div>
+
+    ${item.desc ? `<p style="color:var(--muted);font-size:13px;margin-bottom:16px">📝 ${item.desc}</p>` : ''}
+
+    <div style="margin-bottom:16px">
+      <div style="font-weight:600;margin-bottom:8px;color:var(--orange)">🤝 Atualmente emprestado com:</div>
+      ${empAbertosHtml}
+    </div>
+
+    <div style="margin-bottom:16px">
+      <div style="font-weight:600;margin-bottom:8px">📋 Histórico de retiradas</div>
+      ${historicoHtml}
+    </div>
+
+    <div>
+      <div style="font-weight:600;margin-bottom:8px">⚠️ Ocorrências</div>
+      ${ocHtml}
+    </div>
+  `;
+  openModal('viewItem');
+}
+
+function editItem(id) {
+  const item = data.items.find(i => i.id === id);
+  if (!item) return;
+  document.getElementById('modalItemTitle').textContent = '✏️ Editar Item';
+  document.getElementById('editItemId').value = id;
+  document.getElementById('itemNome').value = item.nome;
+  document.getElementById('itemCat').value = item.cat;
+  document.getElementById('itemQtd').value = item.qtd;
+  document.getElementById('itemQtdMin').value = item.qtdMin || '';
+  document.getElementById('itemDesc').value = item.desc || '';
+  document.getElementById('itemLocal').value = item.local || '';
+  if (item.foto) {
+    document.getElementById('photoPreview').src = item.foto;
+    document.getElementById('photoPreview').style.display = 'block';
+    document.getElementById('photoPlaceholder').style.display = 'none';
+  }
+  openModal('addItem');
+}
+
+function deleteItem(id) {
+  if (!confirm('Tem certeza que deseja excluir este item?')) return;
+  data.items = data.items.filter(i => i.id !== id);
+  save(); renderItems();
+}
+
+function saveItem() {
+  const nome = document.getElementById('itemNome').value.trim();
+  const qtd = document.getElementById('itemQtd').value;
+  if (!nome || qtd === '') { alert('Preencha nome e quantidade!'); return; }
+  const editId = document.getElementById('editItemId').value;
+  const foto = document.getElementById('photoPreview').src && document.getElementById('photoPreview').style.display !== 'none'
+    ? document.getElementById('photoPreview').src : null;
+
+  if (editId) {
+    const idx = data.items.findIndex(i => i.id === editId);
+    data.items[idx] = { ...data.items[idx],
+      nome, cat: document.getElementById('itemCat').value,
+      qtd: Number(qtd), qtdMin: Number(document.getElementById('itemQtdMin').value || 0),
+      desc: document.getElementById('itemDesc').value,
+      local: document.getElementById('itemLocal').value, foto
+    };
+  } else {
+    data.items.push({
+      id: 'item_' + Date.now(),
+      nome, cat: document.getElementById('itemCat').value,
+      qtd: Number(qtd), qtdMin: Number(document.getElementById('itemQtdMin').value || 0),
+      desc: document.getElementById('itemDesc').value,
+      local: document.getElementById('itemLocal').value,
+      foto, dataCad: new Date().toLocaleDateString('pt-BR')
+    });
+  }
+  save(); closeModal('addItem'); renderItems();
+}
+
+// ===== PHOTO =====
+function previewPhoto(input) {
+  if (!input.files[0]) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    document.getElementById('photoPreview').src = e.target.result;
+    document.getElementById('photoPreview').style.display = 'block';
+    document.getElementById('photoPlaceholder').style.display = 'none';
+  };
+  reader.readAsDataURL(input.files[0]);
+}
+
+// ===== EMPRÉSTIMOS =====
+function renderEmprestimos() {
+  const search = (document.getElementById('searchEmp')?.value || '').toLowerCase();
+  const status = document.getElementById('filterEmpStatus')?.value || '';
+  let emp = data.emprestimos.filter(e => {
+    const matchS = e.responsavel.toLowerCase().includes(search) || e.itemNome.toLowerCase().includes(search);
+    const matchSt = !status || e.status === status;
+    return matchS && matchSt;
+  });
+  if (!emp.length) {
+    document.getElementById('emprestimosBody').innerHTML = `<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--muted)">Nenhum empréstimo registrado.</td></tr>`;
+    return;
+  }
+  document.getElementById('emprestimosBody').innerHTML = emp.map(e => `
+    <tr>
+      <td>${e.itemNome}</td>
+      <td>${e.qtd}</td>
+      <td>${e.responsavel}</td>
+      <td>${e.dataSaida}</td>
+      <td>${e.dataRetorno || '—'}</td>
+      <td><span class="badge ${e.status==='devolvido'?'badge-green':'badge-orange'}">${e.status==='devolvido'?'✅ Devolvido':'🔄 Em aberto'}</span></td>
+      <td>
+        ${e.status !== 'devolvido' ? `<button class="btn btn-green btn-sm" onclick="devolverItem('${e.id}')">✅ Devolvido</button>` : ''}
+        <button class="btn btn-red btn-sm" onclick="deleteEmprestimo('${e.id}')">🗑️</button>
+      </td>
+    </tr>`).join('');
+}
+
+function saveEmprestimo() {
+  const itemId = document.getElementById('empItem').value;
+  const item = data.items.find(i => i.id === itemId);
+  if (!item) { alert('Selecione um item!'); return; }
+  const qtd = Number(document.getElementById('empQtd').value);
+  const resp = document.getElementById('empResponsavel').value.trim();
+  if (!qtd || !resp) { alert('Preencha quantidade e responsável!'); return; }
+  if (qtd > item.qtd) { alert(`Quantidade indisponível! Apenas ${item.qtd} em estoque.`); return; }
+  data.emprestimos.push({
+    id: 'emp_' + Date.now(), itemId, itemNome: item.nome,
+    qtd, responsavel: resp,
+    dataSaida: document.getElementById('empDataSaida').value || new Date().toLocaleDateString('pt-BR'),
+    dataRetorno: document.getElementById('empDataRetorno').value,
+    finalidade: document.getElementById('empFinalidade').value,
+    obs: document.getElementById('empObs').value,
+    status: 'aberto'
+  });
+  item.qtd -= qtd;
+  save(); closeModal('addEmprestimo'); renderEmprestimos(); renderStats();
+}
+
+function devolverItem(id) {
+  const emp = data.emprestimos.find(e => e.id === id);
+  if (!emp) return;
+  emp.status = 'devolvido';
+  const item = data.items.find(i => i.id === emp.itemId);
+  if (item) item.qtd += emp.qtd;
+  save(); renderEmprestimos(); renderStats();
+}
+
+function deleteEmprestimo(id) {
+  if (!confirm('Excluir registro?')) return;
+  data.emprestimos = data.emprestimos.filter(e => e.id !== id);
+  save(); renderEmprestimos();
+}
+
+// ===== OCORRÊNCIAS =====
+function renderOcorrencias() {
+  if (!data.ocorrencias.length) {
+    document.getElementById('ocorrenciasBody').innerHTML = `<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--muted)">Nenhuma ocorrência registrada.</td></tr>`;
+    return;
+  }
+  document.getElementById('ocorrenciasBody').innerHTML = data.ocorrencias.map(o => `
+    <tr>
+      <td>${o.itemNome}</td>
+      <td><span class="badge ${o.tipo==='Dano'?'badge-orange':o.tipo==='Perda'?'badge-red':'badge-blue'}">${o.tipo}</span></td>
+      <td>${o.qtd}</td>
+      <td>${o.desc}</td>
+      <td>${o.data}</td>
+      <td>${o.responsavel}</td>
+    </tr>`).join('');
+}
+
+function saveOcorrencia() {
+  const itemId = document.getElementById('ocItem').value;
+  const item = data.items.find(i => i.id === itemId);
+  if (!item) { alert('Selecione um item!'); return; }
+  const qtd = Number(document.getElementById('ocQtd').value || 1);
+  const desc = document.getElementById('ocDesc').value.trim();
+  if (!desc) { alert('Descreva a ocorrência!'); return; }
+  const tipo = document.getElementById('ocTipo').value;
+  if (['Dano','Perda'].includes(tipo)) item.qtd = Math.max(0, item.qtd - qtd);
+  data.ocorrencias.push({
+    id: 'oc_' + Date.now(), itemId, itemNome: item.nome,
+    tipo, qtd, desc,
+    data: document.getElementById('ocData').value || new Date().toLocaleDateString('pt-BR'),
+    responsavel: document.getElementById('ocResponsavel').value
+  });
+  save(); closeModal('addOcorrencia'); renderOcorrencias(); renderStats();
+}
+
+// ===== RELATÓRIOS =====
+function renderRelatorios() {
+  // Por categoria
+  const cats = ['Panela','Prato','Copo','Tigela','Outro'];
+  document.getElementById('relCategorias').innerHTML = cats.map(c => {
+    const items = data.items.filter(i => i.cat === c);
+    const total = items.reduce((a,i) => a + Number(i.qtd), 0);
+    if (!items.length) return '';
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.07)">
+      <span>${catEmoji[c]} ${c}</span>
+      <span style="color:var(--gold);font-weight:600">${total} un. (${items.length} tipo${items.length!==1?'s':''})</span>
+    </div>`;
+  }).join('') || '<p style="color:var(--muted)">Nenhum item cadastrado.</p>';
+
+  // Empréstimos abertos
+  const abertos = data.emprestimos.filter(e => e.status === 'aberto');
+  document.getElementById('relEmprestimos').innerHTML = abertos.length
+    ? abertos.map(e => `<div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.07)">
+        <strong>${e.itemNome}</strong> (${e.qtd} un.)<br>
+        <span style="font-size:13px;color:var(--muted)">👤 ${e.responsavel} • ${e.dataSaida}</span>
+      </div>`).join('')
+    : '<p style="color:var(--green)">✅ Nenhum empréstimo em aberto!</p>';
+
+  // Ocorrências recentes
+  const ocs = [...data.ocorrencias].reverse().slice(0, 5);
+  document.getElementById('relOcorrencias').innerHTML = ocs.length
+    ? ocs.map(o => `<div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.07)">
+        <strong>${o.itemNome}</strong> — ${o.tipo}<br>
+        <span style="font-size:13px;color:var(--muted)">${o.desc.substring(0,60)}...</span>
+      </div>`).join('')
+    : '<p style="color:var(--green)">✅ Nenhuma ocorrência registrada!</p>';
+
+  // Itens com estoque baixo
+  const baixos = data.items.filter(i => Number(i.qtdMin) > 0 && Number(i.qtd) <= Number(i.qtdMin));
+  document.getElementById('relBaixos').innerHTML = baixos.length
+    ? baixos.map(i => `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.07)">
+        <span>${catEmoji[i.cat]} ${i.nome}</span>
+        <span style="color:var(--red);font-weight:600">${i.qtd} / ${i.qtdMin} mín</span>
+      </div>`).join('')
+    : '<p style="color:var(--green)">✅ Todos os itens com estoque adequado!</p>';
+}
+
+// ===== MODAL =====
+function openModal(name) {
+  if (name === 'addItem') {
+    if (!document.getElementById('editItemId').value) {
+      document.getElementById('modalItemTitle').textContent = '➕ Novo Item';
+      document.getElementById('itemNome').value = '';
+      document.getElementById('itemQtd').value = '';
+      document.getElementById('itemQtdMin').value = '';
+      document.getElementById('itemDesc').value = '';
+      document.getElementById('itemLocal').value = '';
+      document.getElementById('photoPreview').style.display = 'none';
+      document.getElementById('photoPlaceholder').style.display = 'block';
+    }
+  }
+  if (name === 'addEmprestimo' || name === 'addOcorrencia') {
+    const sel = name === 'addEmprestimo' ? 'empItem' : 'ocItem';
+    document.getElementById(sel).innerHTML = data.items.map(i =>
+      `<option value="${i.id}">${catEmoji[i.cat]} ${i.nome} (${i.qtd} un.)</option>`
+    ).join('');
+    if (name === 'addEmprestimo') {
+      document.getElementById('empQtd').value = '';
+      document.getElementById('empResponsavel').value = '';
+      document.getElementById('empFinalidade').value = '';
+      document.getElementById('empObs').value = '';
+    } else {
+      document.getElementById('ocQtd').value = '';
+      document.getElementById('ocDesc').value = '';
+      document.getElementById('ocResponsavel').value = '';
+    }
+  }
+  document.getElementById('modal-' + name).classList.add('open');
+}
+
+function closeModal(name) {
+  document.getElementById('modal-' + name).classList.remove('open');
+  if (name === 'addItem') document.getElementById('editItemId').value = '';
+}
+
+document.querySelectorAll('.modal-overlay').forEach(m => {
+  m.addEventListener('click', e => { if (e.target === m) m.classList.remove('open'); });
+});
+
+// ===== EXPORT =====
+function exportData() {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url;
+  a.download = 'inventario-igreja-' + new Date().toLocaleDateString('pt-BR').replace(/\//g,'-') + '.json';
+  a.click();
+}
+
+// ===== CONSULTA RÁPIDA =====
+function consultaRapida() {
+  const q = document.getElementById('consultaInput').value.trim().toLowerCase();
+  const div = document.getElementById('consultaResultado');
+  if (!q) { div.innerHTML = ''; return; }
+
+  const matches = data.items.filter(i => i.nome.toLowerCase().includes(q) || i.cat.toLowerCase().includes(q));
+  if (!matches.length) {
+    div.innerHTML = `<p style="color:var(--muted)">Nenhum item encontrado com esse nome.</p>`;
+    return;
+  }
+
+  div.innerHTML = matches.map(item => {
+    const empsAbertos = data.emprestimos.filter(e => e.itemId === item.id && e.status === 'aberto');
+    const qtdEmp = empsAbertos.reduce((a,e) => a + Number(e.qtd), 0);
+    const qtdDisp = Number(item.qtd);
+    const statusHtml = qtdDisp > 0
+      ? `<span style="color:var(--green);font-weight:600">✅ Disponível — ${qtdDisp} unidade(s) no estoque</span>`
+      : `<span style="color:var(--red);font-weight:600">❌ Sem unidades disponíveis no momento</span>`;
+
+    const empHtml = empsAbertos.length
+      ? `<div style="margin-top:8px;font-size:13px;color:var(--muted)">
+          <strong style="color:var(--orange)">Emprestado para:</strong><br>
+          ${empsAbertos.map(e => `• <strong>${e.responsavel}</strong> — ${e.qtd} un. (saiu em ${e.dataSaida}${e.finalidade ? ', ' + e.finalidade : ''})`).join('<br>')}
+        </div>`
+      : '';
+
+    return `<div style="background:var(--dark2);border:1px solid rgba(201,168,76,0.2);border-radius:12px;padding:14px;margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+        <span style="font-size:22px">${catEmoji[item.cat]}</span>
+        <strong style="font-size:16px">${item.nome}</strong>
+        ${item.local ? `<span style="font-size:12px;color:var(--muted)">📍 ${item.local}</span>` : ''}
+      </div>
+      ${statusHtml}
+      ${qtdEmp > 0 ? `<span style="font-size:13px;color:var(--orange)"> (${qtdEmp} un. emprestadas)</span>` : ''}
+      ${empHtml}
+    </div>`;
+  }).join('');
+}
+
+
+renderItems();
+</script>
+</body>
+</html>
