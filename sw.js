@@ -1,4 +1,4 @@
-const CACHE_NAME = 'central-ibc-v7';
+const CACHE_NAME = 'central-ibc-v8';
 const FILES = [
   './',
   './index.html',
