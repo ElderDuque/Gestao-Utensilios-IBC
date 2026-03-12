@@ -248,6 +248,49 @@
     .form-row { grid-template-columns: 1fr; }
   }
 
+  /* ===== LOCAIS / ARMÁRIOS ===== */
+  .locais-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px,1fr)); gap: 16px; }
+  .local-card {
+    background: var(--card); border: 1px solid rgba(201,168,76,0.2);
+    border-radius: 16px; overflow: hidden; cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .local-card:hover { transform: translateY(-3px); box-shadow: 0 8px 28px rgba(0,0,0,0.4); }
+  .local-card-foto {
+    width: 100%; height: 120px; object-fit: cover;
+    background: rgba(255,255,255,0.04);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 48px;
+  }
+  .local-card-foto img { width:100%; height:100%; object-fit:cover; }
+  .local-card-info { padding: 10px 12px; }
+  .local-card-nome { font-weight: 600; font-size: 14px; color: #fff; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .local-card-sub { font-size: 11px; color: var(--muted); }
+  .local-card-itens { font-size: 11px; color: var(--gold); margin-top: 4px; }
+  .local-detalhe-header { display: flex; align-items: center; gap: 14px; margin-bottom: 20px; }
+  .local-detalhe-foto {
+    width: 80px; height: 80px; border-radius: 12px; object-fit: cover;
+    background: rgba(255,255,255,0.05); display:flex; align-items:center; justify-content:center; font-size:36px;
+    flex-shrink:0; border: 2px solid rgba(201,168,76,0.3);
+  }
+  .local-detalhe-foto img { width:100%; height:100%; object-fit:cover; border-radius:10px; }
+  .local-detalhe-meta { flex:1; }
+  .local-detalhe-meta h2 { font-family:"Playfair Display",serif; font-size:20px; color:#fff; margin-bottom:4px; }
+  .local-detalhe-meta p { font-size:13px; color:var(--muted); }
+  .prateleiras-lista { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+  .prateleira-row {
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(201,168,76,0.15);
+    border-radius: 10px; padding: 12px 16px;
+  }
+  .prateleira-row-titulo { font-size: 13px; font-weight: 600; color: var(--gold-light); margin-bottom: 8px; display:flex; align-items:center; gap:6px; }
+  .prateleira-itens-lista { display: flex; flex-wrap: wrap; gap: 6px; }
+  .prateleira-item-tag {
+    background: rgba(201,168,76,0.12); border: 1px solid rgba(201,168,76,0.25);
+    border-radius: 20px; padding: 4px 10px; font-size: 12px; color: #ddd; cursor: pointer;
+  }
+  .prateleira-item-tag:hover { background: rgba(201,168,76,0.25); }
+  .prateleira-vazia { font-size: 12px; color: var(--muted); font-style: italic; }
+
   /* ===== SPLASH SCREEN ===== */
   #splash {
     position: fixed; inset: 0; z-index: 9999;
@@ -373,6 +416,7 @@
   </div>
   <nav>
     <button class="active" onclick="showTab('inventario',this)">🍽️ <span>Itens</span></button>
+    <button onclick="showTab('locais',this)">🗄️ <span>Locais</span></button>
     <button onclick="showTab('emprestimos',this)">🤝 <span>Empréstimos</span></button>
     <button onclick="showTab('ocorrencias',this)">⚠️ <span>Ocorrências</span></button>
     <button onclick="showTab('relatorios',this)">📊 <span>Relatórios</span></button>
@@ -397,7 +441,7 @@
 
     <div class="section-header">
       <div class="section-title">🍽️ Itens Cadastrados</div>
-      <button class="btn btn-gold" onclick="openModal('addItem')">＋ Novo Item</button>
+      <button class="btn btn-gold" onclick="openModal('addItem');popularSelectLocais();document.getElementById('itemLocalId').value='';document.getElementById('form-prateleira-wrap').style.display='none'">＋ Novo Item</button>
     </div>
     <div class="filter-bar">
       <input type="text" id="searchItems" placeholder="🔍 Buscar item..." oninput="renderItems()">
@@ -414,9 +458,50 @@
         <option value="ok">Disponível</option>
         <option value="baixo">Quantidade baixa</option>
       </select>
+      <select id="filterLocal" onchange="renderItems()">
+        <option value="">🗄️ Todos os locais</option>
+      </select>
     </div>
     <div class="items-grid" id="itemsGrid"></div>
   </div>
+
+  <!-- ===== LOCAIS / ARMÁRIOS ===== -->
+  <div id="tab-locais" class="tab-content">
+    <div class="section-header">
+      <div class="section-title">🗄️ Locais & Armários</div>
+      <button class="btn-primary" onclick="abrirModalLocal()">+ Novo Local</button>
+    </div>
+
+    <!-- Busca por local -->
+    <div style="margin-bottom:16px">
+      <input type="text" id="buscaLocal" placeholder="🔍 Buscar local..." oninput="renderLocais()"
+        style="width:100%;padding:10px 14px;background:rgba(255,255,255,0.07);border:1px solid rgba(201,168,76,0.2);border-radius:10px;color:#fff;font-size:14px;box-sizing:border-box">
+    </div>
+
+    <!-- Grade de locais -->
+    <div id="locais-grid" class="locais-grid"></div>
+    <div id="locais-empty" class="empty" style="display:none">
+      <div class="empty-icon">🗄️</div>
+      <p>Nenhum local cadastrado.<br>Clique em "+ Novo Local" para começar!</p>
+    </div>
+
+    <!-- Detalhe do local (drill-down) -->
+    <div id="local-detalhe" style="display:none">
+      <button onclick="fecharDetalheLocal()" style="background:none;border:none;color:var(--gold);font-size:14px;cursor:pointer;margin-bottom:16px;padding:0">
+        ← Voltar aos locais
+      </button>
+      <div class="local-detalhe-header">
+        <div class="local-detalhe-foto" id="detalhe-foto-wrap"></div>
+        <div class="local-detalhe-meta">
+          <h2 id="detalhe-nome"></h2>
+          <p id="detalhe-desc"></p>
+        </div>
+      </div>
+      <div style="margin-bottom:12px;font-size:13px;color:var(--muted)">Clique em um item para ver detalhes</div>
+      <div id="detalhe-prateleiras" class="prateleiras-lista"></div>
+    </div>
+  </div>
+
 
   <!-- ===== EMPRÉSTIMOS ===== -->
   <div id="tab-emprestimos" class="tab-content">
@@ -538,8 +623,20 @@
       <textarea id="itemDesc" placeholder="Tamanho, cor, estado..."></textarea>
     </div>
     <div class="form-group">
-      <label>Localização no salão</label>
-      <input type="text" id="itemLocal" placeholder="Ex: Armário 1, Prateleira A">
+      <label>📍 Local (Armário/Estante)</label>
+      <select id="itemLocalId" onchange="atualizarPrateleiras()">
+        <option value="">— Selecionar local —</option>
+      </select>
+    </div>
+    <div id="form-prateleira-wrap" class="form-group" style="display:none">
+      <label>📦 Posição dentro do local</label>
+      <select id="itemPrateleira">
+        <option value="">— Selecionar posição —</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>📝 Observação de localização</label>
+      <input type="text" id="itemLocal" placeholder="Ex: fundo da prateleira, embalagem azul...">
     </div>
     <input type="hidden" id="editItemId">
     <div class="modal-footer">
@@ -645,16 +742,312 @@
   </div>
 </div>
 
+<!-- ===== MODAL CADASTRAR LOCAL ===== -->
+<div class="modal-overlay" id="modal-addLocal">
+  <div class="modal">
+    <h2 id="tituloModalLocal">🗄️ Novo Local</h2>
+    <div class="form-group">
+      <label>Nome do local *</label>
+      <input type="text" id="localNome" placeholder="Ex: Armário azul da cozinha">
+    </div>
+    <div class="form-group">
+      <label>Ambiente / Setor</label>
+      <input type="text" id="localAmbiente" placeholder="Ex: Cozinha, Salão, Depósito...">
+    </div>
+    <div class="form-group">
+      <label>Descrição</label>
+      <textarea id="localDesc" placeholder="Ex: Armário de madeira azul, 3 portas, próximo à janela..." rows="2"></textarea>
+    </div>
+    <div class="form-group">
+      <label>Tem gavetas? <small style="color:var(--muted)">(marque as que existem)</small></label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px" id="gavetasWrap">
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;font-weight:normal">
+          <input type="checkbox" id="temGavetas"> Possui gavetas
+        </label>
+      </div>
+      <input type="text" id="localGavetas" placeholder="Ex: Gaveta 1 (documentos), Gaveta 2 (pequenos)..." 
+        style="margin-top:8px;display:none">
+    </div>
+    <div class="form-group">
+      <label>Posições / Prateleiras <small style="color:var(--muted)">(uma por linha)</small></label>
+      <textarea id="localPrateleiras" rows="4"
+        placeholder="Prateleira superior&#10;Prateleira do meio&#10;Prateleira inferior&#10;Topo do armário"></textarea>
+    </div>
+    <div class="form-group">
+      <label>📸 Foto do local</label>
+      <div class="photo-upload">
+        <div id="localFotoPlaceholder" style="display:flex;flex-direction:column;gap:8px;align-items:center">
+          <span>📷 Foto do armário/local</span>
+          <div style="display:flex;gap:8px;margin-top:4px">
+            <button type="button" onclick="document.getElementById('localFotoCamera').click()"
+              style="background:#8B2020;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13px;cursor:pointer">📸 Câmera</button>
+            <button type="button" onclick="document.getElementById('localFotoGaleria').click()"
+              style="background:#333;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13px;cursor:pointer">🖼️ Galeria</button>
+          </div>
+        </div>
+        <img id="localFotoPreview" class="photo-preview" style="display:none" onclick="document.getElementById('localFotoGaleria').click()">
+        <input type="file" id="localFotoCamera" accept="image/*" capture="environment" onchange="previewLocalFoto(this)" style="display:none">
+        <input type="file" id="localFotoGaleria" accept="image/*" onchange="previewLocalFoto(this)" style="display:none">
+      </div>
+    </div>
+    <input type="hidden" id="editLocalId">
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('addLocal')">Cancelar</button>
+      <button class="btn btn-gold" onclick="salvarLocal()">💾 Salvar Local</button>
+    </div>
+  </div>
+</div>
+
+
 <script>
 // ===== DATA =====
 let data = JSON.parse(localStorage.getItem('igrejainventario') || '{}');
 if (!data.items) data.items = [];
 if (!data.emprestimos) data.emprestimos = [];
 if (!data.ocorrencias) data.ocorrencias = [];
+if (!data.locais) data.locais = [];
 
 function save() { localStorage.setItem('igrejainventario', JSON.stringify(data)); }
 
+// Inicialização
+window.addEventListener('DOMContentLoaded', () => {
+  popularSelectLocais();
+  renderLocais();
+});
+
 const catEmoji = { Panela:'🍳', Prato:'🍽️', Copo:'🥤', Tigela:'🥣', Outro:'📦' };
+
+
+// ===== LOCAIS / ARMÁRIOS =====
+
+function abrirModalLocal(id) {
+  document.getElementById('localNome').value = '';
+  document.getElementById('localAmbiente').value = '';
+  document.getElementById('localDesc').value = '';
+  document.getElementById('localGavetas').value = '';
+  document.getElementById('localPrateleiras').value = 'Prateleira superior\nPrateleira do meio\nPrateleira inferior\nTopo do armário';
+  document.getElementById('temGavetas').checked = false;
+  document.getElementById('localGavetas').style.display = 'none';
+  document.getElementById('localFotoPreview').style.display = 'none';
+  document.getElementById('localFotoPlaceholder').style.display = 'flex';
+  document.getElementById('editLocalId').value = '';
+  document.getElementById('tituloModalLocal').textContent = '🗄️ Novo Local';
+
+  if (id) {
+    const local = data.locais.find(l => l.id === id);
+    if (local) {
+      document.getElementById('tituloModalLocal').textContent = '✏️ Editar Local';
+      document.getElementById('editLocalId').value = local.id;
+      document.getElementById('localNome').value = local.nome;
+      document.getElementById('localAmbiente').value = local.ambiente || '';
+      document.getElementById('localDesc').value = local.desc || '';
+      document.getElementById('localPrateleiras').value = (local.prateleiras || []).join('\n');
+      document.getElementById('localGavetas').value = local.gavetas || '';
+      if (local.gavetas) {
+        document.getElementById('temGavetas').checked = true;
+        document.getElementById('localGavetas').style.display = 'block';
+      }
+      if (local.foto) {
+        document.getElementById('localFotoPreview').src = local.foto;
+        document.getElementById('localFotoPreview').style.display = 'block';
+        document.getElementById('localFotoPlaceholder').style.display = 'none';
+      }
+    }
+  }
+  document.getElementById('modal-addLocal').classList.add('open');
+}
+
+document.getElementById('temGavetas').addEventListener('change', function() {
+  document.getElementById('localGavetas').style.display = this.checked ? 'block' : 'none';
+});
+
+function previewLocalFoto(input) {
+  if (!input.files[0]) return;
+  const r = new FileReader();
+  r.onload = e => {
+    document.getElementById('localFotoPreview').src = e.target.result;
+    document.getElementById('localFotoPreview').style.display = 'block';
+    document.getElementById('localFotoPlaceholder').style.display = 'none';
+  };
+  r.readAsDataURL(input.files[0]);
+}
+
+function salvarLocal() {
+  const nome = document.getElementById('localNome').value.trim();
+  if (!nome) { alert('Informe o nome do local!'); return; }
+  const pratRaw = document.getElementById('localPrateleiras').value;
+  const prateleiras = pratRaw.split('\n').map(s => s.trim()).filter(Boolean);
+  const foto = document.getElementById('localFotoPreview').style.display !== 'none'
+    ? document.getElementById('localFotoPreview').src : null;
+  const editId = document.getElementById('editLocalId').value;
+  const local = {
+    nome,
+    ambiente: document.getElementById('localAmbiente').value.trim(),
+    desc: document.getElementById('localDesc').value.trim(),
+    prateleiras,
+    gavetas: document.getElementById('temGavetas').checked
+      ? document.getElementById('localGavetas').value.trim() : '',
+    foto
+  };
+  if (editId) {
+    const idx = data.locais.findIndex(l => l.id === editId);
+    if (idx >= 0) { local.id = editId; data.locais[idx] = local; }
+  } else {
+    local.id = 'L' + Date.now();
+    data.locais.push(local);
+  }
+  save();
+  closeModal('addLocal');
+  renderLocais();
+  popularSelectLocais();
+}
+
+function excluirLocal(id) {
+  if (!confirm('Excluir este local?')) return;
+  data.locais = data.locais.filter(l => l.id !== id);
+  save();
+  renderLocais();
+  popularSelectLocais();
+}
+
+function renderLocais() {
+  const grid = document.getElementById('locais-grid');
+  const empty = document.getElementById('locais-empty');
+  const detalhe = document.getElementById('local-detalhe');
+  const busca = (document.getElementById('buscaLocal').value || '').toLowerCase();
+  detalhe.style.display = 'none';
+  grid.style.display = 'grid';
+  empty.style.display = 'none';
+
+  let locais = data.locais.filter(l =>
+    l.nome.toLowerCase().includes(busca) ||
+    (l.ambiente || '').toLowerCase().includes(busca)
+  );
+
+  if (locais.length === 0) {
+    grid.style.display = 'none';
+    empty.style.display = 'block';
+    return;
+  }
+
+  grid.innerHTML = locais.map(l => {
+    const itensNoLocal = data.items.filter(i => i.localId === l.id).length;
+    const fotoHtml = l.foto
+      ? `<div class="local-card-foto"><img src="${l.foto}" alt="${l.nome}"></div>`
+      : `<div class="local-card-foto">🗄️</div>`;
+    return `<div class="local-card" onclick="abrirDetalheLocal('${l.id}')">
+      ${fotoHtml}
+      <div class="local-card-info">
+        <div class="local-card-nome">${l.nome}</div>
+        <div class="local-card-sub">${l.ambiente || ''}</div>
+        <div class="local-card-itens">${itensNoLocal} item(ns) aqui</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function abrirDetalheLocal(id) {
+  const local = data.locais.find(l => l.id === id);
+  if (!local) return;
+  document.getElementById('locais-grid').style.display = 'none';
+  document.getElementById('locais-empty').style.display = 'none';
+  const det = document.getElementById('local-detalhe');
+  det.style.display = 'block';
+
+  // Foto
+  const fotoWrap = document.getElementById('detalhe-foto-wrap');
+  fotoWrap.innerHTML = local.foto
+    ? `<img src="${local.foto}" alt="${local.nome}">`
+    : '🗄️';
+
+  document.getElementById('detalhe-nome').textContent = local.nome;
+  let descTexto = local.ambiente ? local.ambiente : '';
+  if (local.desc) descTexto += (descTexto ? ' · ' : '') + local.desc;
+  if (local.gavetas) descTexto += ' · Gavetas: ' + local.gavetas;
+  document.getElementById('detalhe-desc').textContent = descTexto;
+
+  // Botão editar
+  det.querySelector('button').insertAdjacentHTML('afterend',
+    `<button onclick="abrirModalLocal('${local.id}')"
+      style="background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.3);color:var(--gold);border-radius:8px;padding:6px 14px;font-size:13px;cursor:pointer;margin-left:8px;margin-bottom:16px">
+      ✏️ Editar
+    </button>
+    <button onclick="excluirLocal('${local.id}')"
+      style="background:rgba(200,50,50,0.15);border:1px solid rgba(200,50,50,0.3);color:#f88;border-radius:8px;padding:6px 14px;font-size:13px;cursor:pointer;margin-left:8px;margin-bottom:16px">
+      🗑️ Excluir
+    </button>`
+  );
+
+  // Prateleiras
+  const pratDiv = document.getElementById('detalhe-prateleiras');
+  const prateleiras = local.prateleiras || [];
+  if (prateleiras.length === 0) {
+    pratDiv.innerHTML = '<p style="color:var(--muted);font-size:13px">Nenhuma posição cadastrada.</p>';
+    return;
+  }
+  pratDiv.innerHTML = prateleiras.map(p => {
+    const itensPrat = data.items.filter(i => i.localId === local.id && i.prateleira === p);
+    const tagsHtml = itensPrat.length > 0
+      ? itensPrat.map(it => `<span class="prateleira-item-tag" onclick="verItem('${it.id}')">${it.nome} (${it.qtd})</span>`).join('')
+      : `<span class="prateleira-vazia">Nenhum item aqui</span>`;
+    return `<div class="prateleira-row">
+      <div class="prateleira-row-titulo">📦 ${p}</div>
+      <div class="prateleira-itens-lista">${tagsHtml}</div>
+    </div>`;
+  }).join('');
+}
+
+function fecharDetalheLocal() {
+  document.getElementById('local-detalhe').style.display = 'none';
+  document.getElementById('local-detalhe').innerHTML = `
+    <button onclick="fecharDetalheLocal()" style="background:none;border:none;color:var(--gold);font-size:14px;cursor:pointer;margin-bottom:16px;padding:0">
+      ← Voltar aos locais
+    </button>
+    <div class="local-detalhe-header">
+      <div class="local-detalhe-foto" id="detalhe-foto-wrap"></div>
+      <div class="local-detalhe-meta">
+        <h2 id="detalhe-nome"></h2>
+        <p id="detalhe-desc"></p>
+      </div>
+    </div>
+    <div style="margin-bottom:12px;font-size:13px;color:var(--muted)">Clique em um item para ver detalhes</div>
+    <div id="detalhe-prateleiras" class="prateleiras-lista"></div>
+  `;
+  renderLocais();
+}
+
+function popularSelectLocais() {
+  const sel = document.getElementById('itemLocalId');
+  if (sel) {
+    const val = sel.value;
+    sel.innerHTML = '<option value="">— Selecionar local —</option>' +
+      data.locais.map(l => `<option value="${l.id}">${l.nome}${l.ambiente ? ' ('+l.ambiente+')' : ''}</option>`).join('');
+    sel.value = val;
+    atualizarPrateleiras();
+  }
+  const filt = document.getElementById('filterLocal');
+  if (filt) {
+    const val2 = filt.value;
+    filt.innerHTML = '<option value="">🗄️ Todos os locais</option>' +
+      data.locais.map(l => `<option value="${l.id}">🗄️ ${l.nome}</option>`).join('');
+    filt.value = val2;
+  }
+}
+
+function atualizarPrateleiras() {
+  const localId = document.getElementById('itemLocalId').value;
+  const wrap = document.getElementById('form-prateleira-wrap');
+  const sel = document.getElementById('itemPrateleira');
+  if (!localId) { wrap.style.display = 'none'; return; }
+  const local = data.locais.find(l => l.id === localId);
+  if (!local || !local.prateleiras || local.prateleiras.length === 0) { wrap.style.display = 'none'; return; }
+  sel.innerHTML = '<option value="">— Selecionar posição —</option>' +
+    local.prateleiras.map(p => `<option value="${p}">${p}</option>`).join('');
+  if (local.gavetas) {
+    sel.innerHTML += `<option value="GAVETAS">🗂️ Gavetas (${local.gavetas})</option>`;
+  }
+  wrap.style.display = 'block';
+}
 
 // ===== TABS =====
 function showTab(name, btn) {
@@ -699,11 +1092,18 @@ function renderItems() {
   const cat = document.getElementById('filterCat').value;
   const status = document.getElementById('filterStatus').value;
   let items = data.items.filter(i => {
-    const matchSearch = i.nome.toLowerCase().includes(search) || (i.desc||'').toLowerCase().includes(search);
+    const localNome = i.localId ? (data.locais.find(l=>l.id===i.localId)||{}).nome||'' : '';
+    const matchSearch = i.nome.toLowerCase().includes(search)
+      || (i.desc||'').toLowerCase().includes(search)
+      || localNome.toLowerCase().includes(search)
+      || (i.prateleira||'').toLowerCase().includes(search)
+      || (i.localObs||i.local||'').toLowerCase().includes(search);
     const matchCat = !cat || i.cat === cat;
+    const filterLocal = document.getElementById('filterLocal').value;
+    const matchLocal = !filterLocal || i.localId === filterLocal;
     const isLow = Number(i.qtd) <= Number(i.qtdMin || 0);
     const matchStatus = !status || (status === 'ok' && !isLow) || (status === 'baixo' && isLow);
-    return matchSearch && matchCat && matchStatus;
+    return matchSearch && matchCat && matchStatus && matchLocal;
   });
 
   if (!items.length) {
@@ -741,7 +1141,14 @@ function renderItems() {
       <div class="item-body">
         <div class="item-name">${item.nome}</div>
         <div class="item-cat">${catEmoji[item.cat]} ${item.cat}</div>
-        ${item.local ? `<div class="item-info">📍 ${item.local}</div>` : ''}
+        ${(() => {
+          const local = item.localId ? data.locais.find(l => l.id === item.localId) : null;
+          const partes = [];
+          if (local) partes.push(local.nome);
+          if (item.prateleira) partes.push(item.prateleira);
+          if (item.localObs || item.local) partes.push(item.localObs || item.local);
+          return partes.length > 0 ? `<div class="item-info" style="font-size:11px;color:var(--muted);margin-bottom:4px">📍 ${partes.join(' › ')}</div>` : '';
+        })()}
         <div class="item-qty">
           <span class="qty-badge ${qClass}">${qLabel}</span>
           <strong>${qtd} un. disponíveis</strong>
@@ -792,7 +1199,17 @@ function viewItem(id) {
   document.getElementById('viewItemContent').innerHTML = `
     ${item.foto ? `<img src="${item.foto}" style="width:100%;border-radius:12px;margin-bottom:16px;max-height:200px;object-fit:cover">` : `<div style="font-size:64px;text-align:center;margin-bottom:16px">${catEmoji[item.cat]}</div>`}
     <h2 style="font-family:'Playfair Display',serif;color:var(--gold);margin-bottom:4px">${item.nome}</h2>
-    <div style="color:var(--muted);font-size:13px;margin-bottom:16px">${catEmoji[item.cat]} ${item.cat}${item.local ? ' • 📍 ' + item.local : ''}</div>
+    ${(() => {
+      const local = item.localId ? data.locais.find(l => l.id === item.localId) : null;
+      const partes = [];
+      if (local) partes.push('<strong>' + local.nome + '</strong>');
+      if (item.prateleira) partes.push(item.prateleira);
+      if (item.localObs || item.local) partes.push(item.localObs || item.local);
+      const localStr = partes.length > 0 ? '📍 ' + partes.join(' › ') : '';
+      const localFoto = local && local.foto ? `<img src="${local.foto}" style="width:60px;height:60px;object-fit:cover;border-radius:8px;border:1px solid rgba(201,168,76,0.3);margin-left:8px;vertical-align:middle" onclick="showTab('locais', document.querySelector('[onclick*=locais]'));abrirDetalheLocal('${local.id}');closeModal('viewItem')">` : '';
+      return `<div style="color:var(--muted);font-size:13px;margin-bottom:8px">${catEmoji[item.cat]} ${item.cat}</div>
+      ${localStr ? `<div style="background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.2);border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:13px;display:flex;align-items:center;gap:6px">${localStr}${localFoto}</div>` : ''}`;
+    })()}
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px">
       <div style="background:var(--dark3);border-radius:10px;padding:12px;text-align:center">
@@ -835,7 +1252,17 @@ function editItem(id) {
   document.getElementById('itemQtd').value = item.qtd;
   document.getElementById('itemQtdMin').value = item.qtdMin || '';
   document.getElementById('itemDesc').value = item.desc || '';
-  document.getElementById('itemLocal').value = item.local || '';
+  document.getElementById('itemLocal').value = item.localObs || item.local || '';
+  popularSelectLocais();
+  setTimeout(() => {
+    if (item.localId) {
+      document.getElementById('itemLocalId').value = item.localId;
+      atualizarPrateleiras();
+      setTimeout(() => {
+        if (item.prateleira) document.getElementById('itemPrateleira').value = item.prateleira;
+      }, 50);
+    }
+  }, 50);
   if (item.foto) {
     document.getElementById('photoPreview').src = item.foto;
     document.getElementById('photoPreview').style.display = 'block';
@@ -864,7 +1291,10 @@ function saveItem() {
       nome, cat: document.getElementById('itemCat').value,
       qtd: Number(qtd), qtdMin: Number(document.getElementById('itemQtdMin').value || 0),
       desc: document.getElementById('itemDesc').value,
-      local: document.getElementById('itemLocal').value, foto
+      localId: document.getElementById('itemLocalId').value,
+      prateleira: document.getElementById('itemPrateleira').value,
+      localObs: document.getElementById('itemLocal').value,
+      foto
     };
   } else {
     data.items.push({
@@ -872,7 +1302,9 @@ function saveItem() {
       nome, cat: document.getElementById('itemCat').value,
       qtd: Number(qtd), qtdMin: Number(document.getElementById('itemQtdMin').value || 0),
       desc: document.getElementById('itemDesc').value,
-      local: document.getElementById('itemLocal').value,
+      localId: document.getElementById('itemLocalId').value,
+      prateleira: document.getElementById('itemPrateleira').value,
+      localObs: document.getElementById('itemLocal').value,
       foto, dataCad: new Date().toLocaleDateString('pt-BR')
     });
   }
