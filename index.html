@@ -581,21 +581,16 @@ tr:hover td{background:rgba(255,255,255,0.02)}
       <textarea id="movelPosicoes" rows="5" placeholder="Prateleira superior&#10;Prateleira do meio&#10;Prateleira inferior&#10;Gaveta 1&#10;Topo"></textarea>
     </div>
     <div class="form-group">
-      <label>📸 Foto do Móvel</label>
-      <div class="photo-upload">
-        <div id="movelFotoPlaceholder">
-          📷 Foto do móvel<br>
-          <div style="display:flex;gap:8px;justify-content:center;margin-top:10px">
-            <button type="button" onclick="document.getElementById('movelFotoCam').click()"
-              style="background:#8B2020;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer">📸 Câmera</button>
-            <button type="button" onclick="document.getElementById('movelFotoGal').click()"
-              style="background:#333;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer">🖼️ Galeria</button>
-          </div>
-        </div>
-        <img id="movelFotoPreview" class="photo-preview" onclick="document.getElementById('movelFotoGal').click()">
-        <input type="file" id="movelFotoCam" accept="image/*" capture="environment" onchange="prevFoto(this,'movelFotoPreview','movelFotoPlaceholder')" style="display:none">
-        <input type="file" id="movelFotoGal" accept="image/*" onchange="prevFoto(this,'movelFotoPreview','movelFotoPlaceholder')" style="display:none">
+      <label>📸 Fotos do Móvel</label>
+      <div id="movelFotosGrid" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px"></div>
+      <div style="display:flex;gap:8px">
+        <button type="button" onclick="document.getElementById('movelFotoCam').click()"
+          style="background:#8B2020;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer">📸 Câmera</button>
+        <button type="button" onclick="document.getElementById('movelFotoGal').click()"
+          style="background:#333;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer">🖼️ Galeria</button>
       </div>
+      <input type="file" id="movelFotoCam" accept="image/*" capture="environment" multiple onchange="adicionarFotosMovel(this)" style="display:none">
+      <input type="file" id="movelFotoGal" accept="image/*" multiple onchange="adicionarFotosMovel(this)" style="display:none">
     </div>
     <input type="hidden" id="editMovelId">
     <input type="hidden" id="movelAmbienteId">
@@ -893,6 +888,96 @@ function getFotoSrc(id) {
   return el && el.style.display !== 'none' ? el.src : null;
 }
 
+// ── Múltiplas fotos do Móvel ───────────────────────────────────────
+let movelFotosTemp = [];
+
+function adicionarFotosMovel(input) {
+  const files = Array.from(input.files);
+  if (!files.length) return;
+  let pendentes = files.length;
+  files.forEach(file => {
+    const r = new FileReader();
+    r.onload = e => {
+      movelFotosTemp.push(e.target.result);
+      pendentes--;
+      if (pendentes === 0) renderMovelFotosGrid();
+    };
+    r.readAsDataURL(file);
+  });
+  input.value = '';
+}
+
+function removerFotoMovel(idx) {
+  movelFotosTemp.splice(idx, 1);
+  renderMovelFotosGrid();
+}
+
+function renderMovelFotosGrid() {
+  const grid = document.getElementById('movelFotosGrid');
+  if (!grid) return;
+  if (!movelFotosTemp.length) {
+    grid.innerHTML = '<span style="font-size:12px;color:var(--muted)">Nenhuma foto adicionada ainda.</span>';
+    return;
+  }
+  grid.innerHTML = movelFotosTemp.map((src, i) => `
+    <div style="position:relative;width:80px;height:80px">
+      <img src="${src}" onclick="abrirLightboxMovel(${i})"
+        style="width:80px;height:80px;object-fit:cover;border-radius:10px;border:2px solid var(--border);cursor:pointer">
+      <button onclick="removerFotoMovel(${i})" title="Remover"
+        style="position:absolute;top:-6px;right:-6px;background:#c94c4c;color:#fff;border:none;
+               border-radius:50%;width:20px;height:20px;font-size:12px;cursor:pointer;
+               display:flex;align-items:center;justify-content:center;line-height:1">x</button>
+    </div>`).join('');
+}
+
+let lightboxIdx = 0;
+let lightboxFotos = [];
+
+function abrirLightboxMovel(idx) {
+  lightboxFotos = movelFotosTemp;
+  lightboxIdx = idx;
+  mostrarLightbox();
+}
+
+function abrirLightboxVisualizacao(fotos, idx) {
+  lightboxFotos = fotos;
+  lightboxIdx = idx;
+  mostrarLightbox();
+}
+
+function mostrarLightbox() {
+  let lb = document.getElementById('movelLightbox');
+  if (!lb) {
+    lb = document.createElement('div');
+    lb.id = 'movelLightbox';
+    lb.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px';
+    lb.onclick = e => { if(e.target===lb) fecharLightbox(); };
+    document.body.appendChild(lb);
+  }
+  const src = lightboxFotos[lightboxIdx];
+  const total = lightboxFotos.length;
+  lb.innerHTML = `
+    <button onclick="fecharLightbox()" style="position:absolute;top:18px;right:22px;background:none;border:none;color:#fff;font-size:26px;cursor:pointer">X</button>
+    <div style="display:flex;align-items:center;gap:16px">
+      ${total>1?`<button onclick="navLightbox(-1)" style="background:rgba(255,255,255,0.15);border:none;color:#fff;border-radius:50%;width:40px;height:40px;font-size:20px;cursor:pointer">&lsaquo;</button>`:''}
+      <img src="${src}" style="max-width:90vw;max-height:78vh;border-radius:14px;object-fit:contain;box-shadow:0 8px 40px rgba(0,0,0,0.7)">
+      ${total>1?`<button onclick="navLightbox(1)" style="background:rgba(255,255,255,0.15);border:none;color:#fff;border-radius:50%;width:40px;height:40px;font-size:20px;cursor:pointer">&rsaquo;</button>`:''}
+    </div>
+    ${total>1?`<div style="color:rgba(255,255,255,0.6);font-size:13px">${lightboxIdx+1} / ${total}</div>`:''}
+  `;
+  lb.style.display = 'flex';
+}
+
+function navLightbox(dir) {
+  lightboxIdx = (lightboxIdx + dir + lightboxFotos.length) % lightboxFotos.length;
+  mostrarLightbox();
+}
+
+function fecharLightbox() {
+  const lb = document.getElementById('movelLightbox');
+  if (lb) lb.style.display = 'none';
+}
+
 function resetFoto(previewId, placeholderId) {
   document.getElementById(previewId).style.display = 'none';
   document.getElementById(previewId).src = '';
@@ -1058,16 +1143,23 @@ function abrirMovel(id) {
 
   let html = '';
 
-  // Foto do móvel no topo
-  if (mov.foto) {
-    html += `<div style="margin-bottom:16px;display:flex;align-items:center;gap:14px">
-      <img src="${mov.foto}" style="width:90px;height:90px;object-fit:cover;border-radius:12px;border:2px solid var(--border)">
-      <div>
-        <div style="font-size:15px;font-weight:600;color:#fff">${mov.nome}</div>
-        <div style="font-size:12px;color:var(--muted)">${mov.cor||''} ${mov.tipo||''}</div>
-        <div style="margin-top:8px;display:flex;gap:6px">
-          <button onclick="abrirModalMovel('${mov.ambId}','${mov.id}')" class="btn btn-ghost btn-sm">✏️ Editar</button>
-          <button onclick="excluirMovel('${mov.id}')" class="btn btn-red btn-sm">🗑️</button>
+  // Fotos do móvel no topo (suporte a múltiplas)
+  const todasFotos = (mov.fotos && mov.fotos.length) ? mov.fotos : (mov.foto ? [mov.foto] : []);
+  if (todasFotos.length) {
+    const thumbs = todasFotos.map((f,i) =>
+      `<img src="${f}" onclick="abrirLightboxVisualizacao(${JSON.stringify(todasFotos)},${i})"
+        style="width:72px;height:72px;object-fit:cover;border-radius:10px;border:2px solid var(--border);cursor:pointer">`
+    ).join('');
+    html += `<div style="margin-bottom:16px">
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px">${thumbs}</div>
+      <div style="display:flex;align-items:center;gap:14px">
+        <div>
+          <div style="font-size:15px;font-weight:600;color:#fff">${mov.nome}</div>
+          <div style="font-size:12px;color:var(--muted)">${mov.cor||''} ${mov.tipo||''}</div>
+          <div style="margin-top:8px;display:flex;gap:6px">
+            <button onclick="abrirModalMovel('${mov.ambId}','${mov.id}')" class="btn btn-ghost btn-sm">✏️ Editar</button>
+            <button onclick="excluirMovel('${mov.id}')" class="btn btn-red btn-sm">🗑️</button>
+          </div>
         </div>
       </div>
     </div>`;
@@ -1200,7 +1292,8 @@ function abrirModalMovel(ambId, id) {
   document.getElementById('movelPosicoes').value='Prateleira superior\nPrateleira do meio\nPrateleira inferior\nTopo';
   document.getElementById('movelAmbienteId').value=ambId||navAmbienteId||'';
   document.getElementById('editMovelId').value='';
-  resetFoto('movelFotoPreview','movelFotoPlaceholder');
+  movelFotosTemp = [];
+  renderMovelFotosGrid();
   document.getElementById('tituloModalMovel').textContent = '🗄️ Novo Móvel';
   if (id) {
     const m = data.moveis.find(x=>x.id===id);
@@ -1212,11 +1305,10 @@ function abrirModalMovel(ambId, id) {
       document.getElementById('movelCor').value=m.cor||'';
       document.getElementById('movelPosicoes').value=(m.posicoes||[]).join('\n');
       document.getElementById('movelAmbienteId').value=m.ambId;
-      if (m.foto) {
-        document.getElementById('movelFotoPreview').src=m.foto;
-        document.getElementById('movelFotoPreview').style.display='block';
-        document.getElementById('movelFotoPlaceholder').style.display='none';
-      }
+      // suporte a fotos[] e foto (legado)
+      if (m.fotos && m.fotos.length) movelFotosTemp = [...m.fotos];
+      else if (m.foto) movelFotosTemp = [m.foto];
+      renderMovelFotosGrid();
     }
   }
   openModal('movel');
@@ -1225,12 +1317,14 @@ function abrirModalMovel(ambId, id) {
 function salvarMovel() {
   const nome = document.getElementById('movelNome').value.trim();
   if (!nome) { alert('Informe o nome!'); return; }
-  const foto = getFotoSrc('movelFotoPreview');
   const posicoes = document.getElementById('movelPosicoes').value.split('\n').map(s=>s.trim()).filter(Boolean);
   const ambId = document.getElementById('movelAmbienteId').value;
   const id = document.getElementById('editMovelId').value;
+  // guarda array de fotos e mantém foto (legado) como primeira foto
+  const fotos = [...movelFotosTemp];
+  const foto = fotos[0] || null;
   const obj = { nome, tipo:document.getElementById('movelTipo').value,
-    cor:document.getElementById('movelCor').value.trim(), posicoes, ambId, foto };
+    cor:document.getElementById('movelCor').value.trim(), posicoes, ambId, foto, fotos };
   if (id) {
     const i = data.moveis.findIndex(m=>m.id===id);
     data.moveis[i] = {...data.moveis[i],...obj};
