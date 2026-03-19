@@ -984,10 +984,17 @@ async function syncToCloud() {
 
 async function loadFromCloud() {
   if (JSONBIN_BIN === 'SEU_BIN_ID_AQUI') return;
+  // Timeout de 5 segundos — se demorar mais, usa dados locais
+  const timeout = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error('timeout')), 5000)
+  );
   try {
-    const resp = await fetch('https://api.jsonbin.io/v3/b/' + JSONBIN_BIN + '/latest', {
-      headers: { 'X-Master-Key': JSONBIN_KEY }
-    });
+    const resp = await Promise.race([
+      fetch('https://api.jsonbin.io/v3/b/' + JSONBIN_BIN + '/latest', {
+        headers: { 'X-Master-Key': JSONBIN_KEY }
+      }),
+      timeout
+    ]);
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     const json = await resp.json();
     const cloud = json.record;
@@ -1002,7 +1009,12 @@ async function loadFromCloud() {
       localStorage.setItem('ibcdata2', JSON.stringify(data));
     }
   } catch(e) {
-    console.error('Load error:', e);
+    if (e.message === 'timeout') {
+      console.warn('JSONBin timeout — usando dados locais');
+      setSyncStatus('offline');
+    } else {
+      console.error('Load error:', e);
+    }
   }
 }
 
