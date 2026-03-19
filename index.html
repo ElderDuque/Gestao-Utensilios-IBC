@@ -319,6 +319,7 @@ tr:hover td{background:rgba(255,255,255,0.02)}
 .splash-dot:nth-child(2){animation-delay:.2s} .splash-dot:nth-child(3){animation-delay:.4s}
 @keyframes dotPulse{0%,100%{opacity:.3;transform:scale(1)}50%{opacity:1;transform:scale(1.4)}}
 @keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(1.3)}}
 
 /* INSTALL BANNER */
 #installBanner{display:none;position:fixed;bottom:0;left:0;right:0;z-index:500;
@@ -371,7 +372,11 @@ tr:hover td{background:rgba(255,255,255,0.02)}
     <div>
       <div class="logo-text">Igreja Batista Central</div>
       <div class="logo-sub">Utensílios</div>
-    <div id="sync-status" style="font-size:10px;color:#4caf7a;margin-top:2px"></div>
+    <div id="sync-status" onclick="verificarConexao()" title="Status da conexão"
+      style="font-size:10px;color:#4caf7a;margin-top:2px;cursor:pointer;display:flex;align-items:center;gap:4px">
+      <span id="sync-dot" style="width:8px;height:8px;border-radius:50%;background:#4caf7a;display:inline-block;flex-shrink:0"></span>
+      <span id="sync-text">Online</span>
+    </div>
     </div>
   </div>
   <nav>
@@ -884,20 +889,66 @@ let syncing = false;
 
 // Mostra indicador de sync
 function setSyncStatus(status) {
-  let el = document.getElementById('sync-status');
-  if (!el) return;
+  const dot = document.getElementById('sync-dot');
+  const txt = document.getElementById('sync-text');
+  if (!dot || !txt) return;
   if (status === 'saving') {
-    el.textContent = '☁️ Salvando...';
-    el.style.color = '#e8c97a';
+    dot.style.background = '#e8c97a';
+    dot.style.animation = 'pulse 1s infinite';
+    txt.textContent = '☁️ Salvando...';
+    txt.style.color = '#e8c97a';
   } else if (status === 'ok') {
-    el.textContent = '✅ Salvo';
-    el.style.color = '#4caf7a';
-    setTimeout(() => { if(el) el.textContent = ''; }, 2000);
+    dot.style.background = '#4caf7a';
+    dot.style.animation = '';
+    txt.textContent = '✅ Salvo';
+    txt.style.color = '#4caf7a';
+    setTimeout(() => { txt.textContent = 'Online'; }, 2000);
   } else if (status === 'error') {
-    el.textContent = '⚠️ Erro ao salvar';
-    el.style.color = '#c94c4c';
+    dot.style.background = '#c94c4c';
+    dot.style.animation = '';
+    txt.textContent = '⚠️ Erro';
+    txt.style.color = '#c94c4c';
+  } else if (status === 'offline') {
+    dot.style.background = '#c94c4c';
+    dot.style.animation = '';
+    txt.textContent = 'Offline';
+    txt.style.color = '#c94c4c';
+  } else if (status === 'online') {
+    dot.style.background = '#4caf7a';
+    dot.style.animation = '';
+    txt.textContent = 'Online';
+    txt.style.color = '#4caf7a';
   }
 }
+
+function verificarConexao() {
+  if (!navigator.onLine) {
+    setSyncStatus('offline');
+    alert('📵 Sem conexão com a internet!
+
+Os dados estão salvos localmente e serão sincronizados quando a conexão voltar.');
+    return;
+  }
+  setSyncStatus('saving');
+  fetch('https://api.jsonbin.io/v3/b/' + JSONBIN_BIN + '/latest', {
+    headers: { 'X-Master-Key': JSONBIN_KEY }
+  }).then(r => {
+    if (r.ok) {
+      setSyncStatus('ok');
+      alert('✅ Conectado e sincronizado com a nuvem!\n\nTodos os dados estão salvos no JSONBin.');
+    } else {
+      setSyncStatus('error');
+      alert('⚠️ Conectado, mas houve um erro na sincronização.\nCódigo: ' + r.status);
+    }
+  }).catch(() => {
+    setSyncStatus('error');
+    alert('❌ Sem conexão com o servidor.\nVerifique sua internet.');
+  });
+}
+
+// Detectar online/offline automaticamente
+window.addEventListener('online',  () => setSyncStatus('online'));
+window.addEventListener('offline', () => setSyncStatus('offline'));
 
 // Salva localmente SEMPRE e envia para JSONBin com debounce
 function save() {
