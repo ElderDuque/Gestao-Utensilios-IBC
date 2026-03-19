@@ -173,12 +173,33 @@ tr:hover td{background:rgba(255,255,255,0.02)}
 
 /* Nível 3 — Posições dentro do móvel */
 .posicoes-lista{display:flex;flex-direction:column;gap:10px;margin-top:16px}
-.posicao-row{
-  background:rgba(255,255,255,0.04);border:1px solid rgba(201,168,76,0.15);
-  border-radius:12px;padding:14px 16px
+/* Posições colapsáveis */
+.posicao-row{margin-bottom:10px;border-radius:14px;overflow:hidden}
+.posicao-btn{
+  width:100%;background:linear-gradient(135deg,rgba(201,168,76,0.12),rgba(201,168,76,0.06));
+  border:1px solid rgba(201,168,76,0.3);border-radius:14px;
+  padding:14px 16px;cursor:pointer;transition:.2s;
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  font-family:"DM Sans",sans-serif;text-align:left
 }
-.posicao-titulo{font-size:13px;font-weight:600;color:var(--gold-light);margin-bottom:10px;display:flex;align-items:center;gap:6px}
-.posicao-itens{display:flex;flex-wrap:wrap;gap:8px}
+.posicao-btn:hover{background:linear-gradient(135deg,rgba(201,168,76,0.22),rgba(201,168,76,0.12));border-color:var(--gold)}
+.posicao-btn.aberto{border-radius:14px 14px 0 0;border-bottom-color:transparent}
+.posicao-btn-esq{display:flex;align-items:center;gap:10px}
+.posicao-btn-icone{font-size:20px}
+.posicao-btn-nome{font-size:14px;font-weight:600;color:var(--gold-light)}
+.posicao-btn-dir{display:flex;align-items:center;gap:8px}
+.posicao-badge{background:rgba(201,168,76,0.2);color:var(--gold);border-radius:20px;
+  padding:3px 10px;font-size:11px;font-weight:700}
+.posicao-badge.vazio{background:rgba(255,255,255,0.06);color:var(--muted)}
+.posicao-chevron{color:var(--gold);font-size:16px;transition:transform .25s}
+.posicao-btn.aberto .posicao-chevron{transform:rotate(180deg)}
+.posicao-conteudo{
+  display:none;background:rgba(255,255,255,0.03);
+  border:1px solid rgba(201,168,76,0.3);border-top:none;
+  border-radius:0 0 14px 14px;padding:14px 16px;
+}
+.posicao-conteudo.aberto{display:block}
+.posicao-itens{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
 .posicao-item-card{
   background:rgba(255,255,255,0.06);border:1px solid var(--border);
   border-radius:10px;padding:8px 10px;cursor:pointer;transition:.2s;
@@ -190,7 +211,7 @@ tr:hover td{background:rgba(255,255,255,0.02)}
 .posicao-item-foto img{width:100%;height:100%;object-fit:cover;border-radius:7px}
 .posicao-item-nome{font-size:12px;color:#ddd;font-weight:500}
 .posicao-item-qtd{font-size:11px;color:var(--gold)}
-.posicao-vazia{font-size:12px;color:var(--muted);font-style:italic}
+.posicao-vazia{font-size:12px;color:var(--muted);font-style:italic;padding:4px 0;display:block}
 
 /* Breadcrumb */
 .breadcrumb{display:flex;align-items:center;gap:6px;margin-bottom:18px;flex-wrap:wrap}
@@ -1174,26 +1195,64 @@ function abrirMovel(id) {
     html += '<div class="empty"><div class="empty-icon">📦</div><p>Nenhuma posição ou item cadastrado aqui.</p></div>';
   }
 
-  // Por posição
-  posicoes.forEach(pos => {
+  // Por posição — botões colapsáveis
+  const posEmojis = ['🔝','📗','📘','📙','📕','🗂️','📂','🗃️','📦','🏷️'];
+  posicoes.forEach((pos, idx) => {
     const itensPos = data.items.filter(i=>i.movelId===id && i.posicao===pos);
+    const n = itensPos.length;
+    const posId = 'pos_' + idx + '_' + id;
+    const emoji = posEmojis[idx % posEmojis.length];
     html += `<div class="posicao-row">
-      <div class="posicao-titulo">📦 ${pos}</div>
-      <div class="posicao-itens">
-        ${itensPos.length ? itensPos.map(it => itemTagCard(it)).join('') : '<span class="posicao-vazia">Vazio</span>'}
+      <button class="posicao-btn" onclick="togglePosicao('${posId}',this)">
+        <div class="posicao-btn-esq">
+          <span class="posicao-btn-icone">${emoji}</span>
+          <span class="posicao-btn-nome">${pos}</span>
+        </div>
+        <div class="posicao-btn-dir">
+          <span class="posicao-badge ${n===0?'vazio':''}">${n===0?'Vazio':n+' item'+(n>1?'s':'')}</span>
+          <span class="posicao-chevron">▾</span>
+        </div>
+      </button>
+      <div class="posicao-conteudo" id="${posId}">
+        <div class="posicao-itens">
+          ${n ? itensPos.map(it => itemTagCard(it)).join('') : '<span class="posicao-vazia">Nenhum item nesta posição ainda.</span>'}
+        </div>
+        <button onclick="abrirModalItem('${mov.ambId}','${id}');setTimeout(()=>{document.getElementById('itemPosicao').value='${pos}';},120)"
+          style="margin-top:4px;background:rgba(201,168,76,0.12);border:1px dashed rgba(201,168,76,0.4);color:var(--gold);
+                 border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer;font-family:'DM Sans',sans-serif;width:100%">
+          ＋ Adicionar item aqui
+        </button>
       </div>
     </div>`;
   });
 
   // Itens sem posição definida
   if (itensSemPos.length) {
+    const posId = 'pos_sempos_' + id;
     html += `<div class="posicao-row">
-      <div class="posicao-titulo">📋 Sem posição definida</div>
-      <div class="posicao-itens">${itensSemPos.map(it => itemTagCard(it)).join('')}</div>
+      <button class="posicao-btn" onclick="togglePosicao('${posId}',this)">
+        <div class="posicao-btn-esq">
+          <span class="posicao-btn-icone">📋</span>
+          <span class="posicao-btn-nome">Sem posição definida</span>
+        </div>
+        <div class="posicao-btn-dir">
+          <span class="posicao-badge">${itensSemPos.length} item${itensSemPos.length>1?'s':''}</span>
+          <span class="posicao-chevron">▾</span>
+        </div>
+      </button>
+      <div class="posicao-conteudo" id="${posId}">
+        <div class="posicao-itens">${itensSemPos.map(it => itemTagCard(it)).join('')}</div>
+      </div>
     </div>`;
   }
 
   lista.innerHTML = html;
+}
+
+function togglePosicao(posId, btn) {
+  const conteudo = document.getElementById(posId);
+  const aberto = conteudo.classList.toggle('aberto');
+  btn.classList.toggle('aberto', aberto);
 }
 
 function itemTagCard(it) {
