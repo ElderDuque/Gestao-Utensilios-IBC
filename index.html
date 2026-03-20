@@ -2395,14 +2395,18 @@ window.addEventListener('load',()=>{
   },2000);
 });
 
-window.addEventListener('DOMContentLoaded', async ()=>{
-  // Tenta carregar da nuvem primeiro
-  const el = document.getElementById('sync-status');
-  if (el) { el.textContent = '☁️ Carregando...'; el.style.color = '#e8c97a'; }
-  await loadFromCloud();
-  if (el) { el.textContent = ''; }
+window.addEventListener('DOMContentLoaded', ()=>{
+  // Carrega imediatamente com dados locais
   popularSelectAmbientes();
   executarBusca();
+  // Sincroniza em segundo plano sem bloquear
+  setTimeout(() => {
+    setSyncStatus('saving');
+    loadFromCloud().then(() => {
+      popularSelectAmbientes();
+      executarBusca();
+    });
+  }, 500);
 });
 </script>
 </body>
