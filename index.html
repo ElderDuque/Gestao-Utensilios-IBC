@@ -2371,25 +2371,51 @@ if('serviceWorker' in navigator) {
 // SPLASH & INIT
 // ═══════════════════════════════════════════
 window.addEventListener('load',()=>{
+  // Splash some SEMPRE após 2 segundos — sem depender de nada
   setTimeout(()=>{
-    document.getElementById('splash').classList.add('hide');
-    setTimeout(()=>document.getElementById('splash').remove(),900);
-  },2000);
+    const splash = document.getElementById('splash');
+    if (splash) {
+      splash.classList.add('hide');
+      setTimeout(()=>{ if(splash.parentNode) splash.remove(); },900);
+    }
+  }, 2000);
 });
 
 window.addEventListener('DOMContentLoaded', ()=>{
-  // Abre IMEDIATAMENTE com dados locais — sem esperar nuvem
   popularSelectAmbientes();
   executarBusca();
   setSyncStatus('online');
-  // Sincroniza em segundo plano após 3 segundos
+  // Sincroniza só após 5 segundos e nunca bloqueia
   setTimeout(() => {
-    loadFromCloud().then(() => {
-      popularSelectAmbientes();
-      executarBusca();
+    if (!navigator.onLine) { setSyncStatus('offline'); return; }
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 4000);
+    fetch('https://api.jsonbin.io/v3/b/' + JSONBIN_BIN + '/latest', {
+      headers: { 'X-Master-Key': JSONBIN_KEY },
+      signal: controller.signal
+    }).then(r => {
+      clearTimeout(timer);
+      if (!r.ok) throw new Error();
+      return r.json();
+    }).then(json => {
+      const cloud = json.record;
+      if (cloud && typeof cloud === 'object' && Object.keys(cloud).length > 1) {
+        data = cloud;
+        if (!data.ambientes)   data.ambientes   = [];
+        if (!data.tags)        data.tags        = [];
+        if (!data.moveis)      data.moveis      = [];
+        if (!data.items)       data.items       = [];
+        if (!data.emprestimos) data.emprestimos = [];
+        if (!data.ocorrencias) data.ocorrencias = [];
+        localStorage.setItem('ibcdata2', JSON.stringify(data));
+        popularSelectAmbientes();
+        executarBusca();
+      }
       setSyncStatus('ok');
-    }).catch(() => setSyncStatus('offline'));
-  }, 3000);
+    }).catch(() => {
+      setSyncStatus('offline');
+    });
+  }, 5000);
 });
 </script>
 </body>
