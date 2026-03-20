@@ -2378,17 +2378,18 @@ window.addEventListener('load',()=>{
 });
 
 window.addEventListener('DOMContentLoaded', ()=>{
-  // Carrega imediatamente com dados locais
+  // Abre IMEDIATAMENTE com dados locais — sem esperar nuvem
   popularSelectAmbientes();
   executarBusca();
-  // Sincroniza em segundo plano sem bloquear
+  setSyncStatus('online');
+  // Sincroniza em segundo plano após 3 segundos
   setTimeout(() => {
-    setSyncStatus('saving');
     loadFromCloud().then(() => {
       popularSelectAmbientes();
       executarBusca();
-    });
-  }, 500);
+      setSyncStatus('ok');
+    }).catch(() => setSyncStatus('offline'));
+  }, 3000);
 });
 </script>
 </body>
