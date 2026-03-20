@@ -373,11 +373,7 @@ tr:hover td{background:rgba(255,255,255,0.02)}
     <div>
       <div class="logo-text">Igreja Batista Central</div>
       <div class="logo-sub">Utensílios</div>
-    <div id="sync-status" onclick="verificarConexao()" title="Status da conexão"
-      style="font-size:10px;color:#4caf7a;margin-top:2px;cursor:pointer;display:flex;align-items:center;gap:4px">
-      <span id="sync-dot" style="width:8px;height:8px;border-radius:50%;background:#4caf7a;display:inline-block;flex-shrink:0"></span>
-      <span id="sync-text">Online</span>
-    </div>
+
     </div>
   </div>
   <nav>
@@ -871,12 +867,6 @@ tr:hover td{background:rgba(255,255,255,0.02)}
 // ═══════════════════════════════════════════
 // DADOS
 // ═══════════════════════════════════════════
-// ═══════════════════════════════════════════
-// JSONBIN CONFIG
-// ═══════════════════════════════════════════
-const JSONBIN_KEY = '$2a$10$FKadCIke3uWJuvYLXw1yqeOZ9YDXr3goe.nLSgiBeeit50PCKUp3S';
-const JSONBIN_BIN = '69bc1a69b7ec241ddc82b95d'; // <- substitua pelo BIN ID após criar
-
 let data = JSON.parse(localStorage.getItem('ibcdata2') || '{}');
 if (!data.ambientes)   data.ambientes   = [];
 if (!data.tags)        data.tags        = [];
@@ -885,93 +875,7 @@ if (!data.items)       data.items       = [];
 if (!data.emprestimos) data.emprestimos = [];
 if (!data.ocorrencias) data.ocorrencias = [];
 
-let syncTimeout = null;
-let syncing = false;
-
-// Mostra indicador de sync
-function setSyncStatus(status) {
-  const dot = document.getElementById('sync-dot');
-  const txt = document.getElementById('sync-text');
-  if (!dot || !txt) return;
-  if (status === 'saving') {
-    dot.style.background = '#e8c97a';
-    dot.style.animation = 'pulse 1s infinite';
-    txt.textContent = '☁️ Salvando...';
-    txt.style.color = '#e8c97a';
-  } else if (status === 'ok') {
-    dot.style.background = '#4caf7a';
-    dot.style.animation = '';
-    txt.textContent = '✅ Salvo';
-    txt.style.color = '#4caf7a';
-    setTimeout(() => { txt.textContent = 'Online'; }, 2000);
-  } else if (status === 'error') {
-    dot.style.background = '#c94c4c';
-    dot.style.animation = '';
-    txt.textContent = '⚠️ Erro';
-    txt.style.color = '#c94c4c';
-  } else if (status === 'offline') {
-    dot.style.background = '#c94c4c';
-    dot.style.animation = '';
-    txt.textContent = 'Offline';
-    txt.style.color = '#c94c4c';
-  } else if (status === 'online') {
-    dot.style.background = '#4caf7a';
-    dot.style.animation = '';
-    txt.textContent = 'Online';
-    txt.style.color = '#4caf7a';
-  }
-}
-
-function verificarConexao() {
-  if (!navigator.onLine) {
-    setSyncStatus('offline');
-    alert('📵 Sem conexão com a internet!
-
-Os dados estão salvos localmente e serão sincronizados quando a conexão voltar.');
-    return;
-  }
-  setSyncStatus('saving');
-  fetch('https://api.jsonbin.io/v3/b/' + JSONBIN_BIN + '/latest', {
-    headers: { 'X-Master-Key': JSONBIN_KEY }
-  }).then(r => {
-    if (r.ok) {
-      setSyncStatus('ok');
-      alert('✅ Conectado e sincronizado com a nuvem!\n\nTodos os dados estão salvos no JSONBin.');
-    } else {
-      setSyncStatus('error');
-      alert('⚠️ Conectado, mas houve um erro na sincronização.\nCódigo: ' + r.status);
-    }
-  }).catch(() => {
-    setSyncStatus('error');
-    alert('❌ Sem conexão com o servidor.\nVerifique sua internet.');
-  });
-}
-
-// Detectar online/offline automaticamente
-window.addEventListener('online',  () => setSyncStatus('online'));
-window.addEventListener('offline', () => setSyncStatus('offline'));
-
-// Salva localmente SEMPRE e envia para JSONBin com debounce
-function save() {
-  localStorage.setItem('ibcdata2', JSON.stringify(data));
-  if (JSONBIN_BIN === 'SEU_BIN_ID_AQUI') return; // ainda não configurado
-  clearTimeout(syncTimeout);
-  syncTimeout = setTimeout(syncToCloud, 800);
-}
-
-async function syncToCloud() {
-  if (syncing) return;
-  syncing = true;
-  setSyncStatus('saving');
-  try {
-    const resp = await fetch('https://api.jsonbin.io/v3/b/' + JSONBIN_BIN, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Master-Key': JSONBIN_KEY
-      },
-      body: JSON.stringify(data)
-    });
+function setSyncStatus(s){} function verificarConexao(){}
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     setSyncStatus('ok');
   } catch(e) {
@@ -2384,37 +2288,7 @@ window.addEventListener('load',()=>{
 window.addEventListener('DOMContentLoaded', ()=>{
   popularSelectAmbientes();
   executarBusca();
-  setSyncStatus('online');
-  // Sincroniza só após 5 segundos e nunca bloqueia
-  setTimeout(() => {
-    if (!navigator.onLine) { setSyncStatus('offline'); return; }
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 4000);
-    fetch('https://api.jsonbin.io/v3/b/' + JSONBIN_BIN + '/latest', {
-      headers: { 'X-Master-Key': JSONBIN_KEY },
-      signal: controller.signal
-    }).then(r => {
-      clearTimeout(timer);
-      if (!r.ok) throw new Error();
-      return r.json();
-    }).then(json => {
-      const cloud = json.record;
-      if (cloud && typeof cloud === 'object' && Object.keys(cloud).length > 1) {
-        data = cloud;
-        if (!data.ambientes)   data.ambientes   = [];
-        if (!data.tags)        data.tags        = [];
-        if (!data.moveis)      data.moveis      = [];
-        if (!data.items)       data.items       = [];
-        if (!data.emprestimos) data.emprestimos = [];
-        if (!data.ocorrencias) data.ocorrencias = [];
-        localStorage.setItem('ibcdata2', JSON.stringify(data));
-        popularSelectAmbientes();
-        executarBusca();
-      }
-      setSyncStatus('ok');
-    }).catch(() => {
-      setSyncStatus('offline');
-    });
+});
   }, 5000);
 });
 </script>
