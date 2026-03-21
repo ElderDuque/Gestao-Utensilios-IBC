@@ -2,79 +2,54 @@
 <html lang="pt-br">
 <head>
 <meta charset="UTF-8">
-<title>Login App</title>
-
+<title>App Firebase Completo</title>
 <style>
 body {
   font-family: Arial;
   background: linear-gradient(135deg, #4facfe, #00f2fe);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100vh;
-  margin: 0;
+  margin:0;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  height:100vh;
 }
-
 .container {
-  background: white;
-  padding: 30px;
-  border-radius: 15px;
-  width: 300px;
-  text-align: center;
-  box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+  background:white;
+  padding:25px;
+  border-radius:12px;
+  width:300px;
+  text-align:center;
 }
-
-input {
-  width: 100%;
-  padding: 10px;
-  margin: 10px 0;
-  border-radius: 8px;
-  border: 1px solid #ccc;
+input, button {
+  width:100%;
+  padding:10px;
+  margin:8px 0;
 }
-
-button {
-  width: 100%;
-  padding: 10px;
-  margin-top: 10px;
-  border: none;
-  border-radius: 8px;
-  background: #4facfe;
-  color: white;
-  font-weight: bold;
-  cursor: pointer;
-}
-
-button:hover {
-  background: #3a8dde;
-}
-
-#app {
-  display: none;
-}
+#app { display:none; }
 </style>
 </head>
-
 <body>
 
 <div class="container" id="loginBox">
-  <h2>🔐 Login</h2>
-  <input type="email" id="email" placeholder="Email">
-  <input type="password" id="senha" placeholder="Senha">
-  
-  <button onclick="login()">Entrar</button>
-  <button onclick="registrar()">Criar Conta</button>
+<h2>Login</h2>
+<input type="email" id="email" placeholder="Email">
+<input type="password" id="senha" placeholder="Senha">
+<button onclick="registrar()">Criar Conta</button>
+<button onclick="login()">Entrar</button>
 </div>
 
-<div id="app">
-  <h2>✅ Logado!</h2>
-  <button onclick="logout()">Sair</button>
+<div class="container" id="app">
+<h2>App</h2>
+<input type="text" id="texto" placeholder="Digite algo">
+<button onclick="salvar()">Salvar</button>
+<button onclick="logout()">Sair</button>
+<ul id="lista"></ul>
 </div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { 
-  getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut 
-} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBgAv-3QaBdPiMoCzY06CO_ayA2NSurLhU",
@@ -88,40 +63,70 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
+const db = getDatabase(app);
 
-// 🔐 LOGIN
-window.login = () => {
-  const email = document.getElementById("email").value;
-  const senha = document.getElementById("senha").value;
+let userId = null;
 
-  signInWithEmailAndPassword(auth, email, senha)
-    .catch(e => alert(e.message));
-};
-
-// 🔐 REGISTRAR
 window.registrar = () => {
   const email = document.getElementById("email").value;
   const senha = document.getElementById("senha").value;
-
   createUserWithEmailAndPassword(auth, email, senha)
     .catch(e => alert(e.message));
 };
 
-// 🔐 LOGOUT
-window.logout = () => {
-  signOut(auth);
+window.login = () => {
+  const email = document.getElementById("email").value;
+  const senha = document.getElementById("senha").value;
+  signInWithEmailAndPassword(auth, email, senha)
+    .catch(e => alert(e.message));
 };
 
-// 🔄 CONTROLE DE TELA
+window.logout = () => signOut(auth);
+
 onAuthStateChanged(auth, (user) => {
   if (user) {
+    userId = user.uid;
     document.getElementById("loginBox").style.display = "none";
     document.getElementById("app").style.display = "block";
+    sincronizar();
   } else {
     document.getElementById("loginBox").style.display = "block";
     document.getElementById("app").style.display = "none";
   }
 });
+
+function salvar() {
+  const texto = document.getElementById("texto").value;
+  if (!userId) return;
+
+  let dados = JSON.parse(localStorage.getItem("dados")) || [];
+  dados.push(texto);
+
+  localStorage.setItem("dados", JSON.stringify(dados));
+  set(ref(db, 'usuarios/' + userId), dados);
+}
+
+function sincronizar() {
+  const caminho = ref(db, 'usuarios/' + userId);
+
+  onValue(caminho, (snapshot) => {
+    if (snapshot.exists()) {
+      const dados = snapshot.val();
+      localStorage.setItem("dados", JSON.stringify(dados));
+      render(dados);
+    }
+  });
+}
+
+function render(dados) {
+  const lista = document.getElementById("lista");
+  lista.innerHTML = "";
+  dados.forEach(item => {
+    const li = document.createElement("li");
+    li.textContent = item;
+    lista.appendChild(li);
+  });
+}
 </script>
 
 </body>
