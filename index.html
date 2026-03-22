@@ -2,7 +2,7 @@
 <html lang="pt-br">
 <head>
 <meta charset="UTF-8">
-<title>App Firebase Completo</title>
+<title>App Utensílios Firebase</title>
 <style>
 body {
   font-family: Arial;
@@ -39,8 +39,8 @@ input, button {
 </div>
 
 <div class="container" id="app">
-<h2>App</h2>
-<input type="text" id="texto" placeholder="Digite algo">
+<h2>Utensílios</h2>
+<input type="text" id="texto" placeholder="Digite um item">
 <button onclick="salvar()">Salvar</button>
 <button onclick="logout()">Sair</button>
 <ul id="lista"></ul>
@@ -88,6 +88,10 @@ onAuthStateChanged(auth, (user) => {
     userId = user.uid;
     document.getElementById("loginBox").style.display = "none";
     document.getElementById("app").style.display = "block";
+
+    const dadosLocal = JSON.parse(localStorage.getItem("dados")) || [];
+    render(dadosLocal);
+
     sincronizar();
   } else {
     document.getElementById("loginBox").style.display = "block";
@@ -96,14 +100,18 @@ onAuthStateChanged(auth, (user) => {
 });
 
 function salvar() {
-  const texto = document.getElementById("texto").value;
-  if (!userId) return;
+  const input = document.getElementById("texto");
+  const texto = input.value;
+
+  if (!userId || !texto) return;
 
   let dados = JSON.parse(localStorage.getItem("dados")) || [];
   dados.push(texto);
 
   localStorage.setItem("dados", JSON.stringify(dados));
   set(ref(db, 'usuarios/' + userId), dados);
+
+  input.value = "";
 }
 
 function sincronizar() {
@@ -114,6 +122,9 @@ function sincronizar() {
       const dados = snapshot.val();
       localStorage.setItem("dados", JSON.stringify(dados));
       render(dados);
+    } else {
+      const dadosLocal = JSON.parse(localStorage.getItem("dados")) || [];
+      render(dadosLocal);
     }
   });
 }
