@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<title>Gestão de Utensílios</title>
+
+<style>
+body {
+  font-family: Arial;
+  margin:0;
+  background: linear-gradient(135deg, #4facfe, #00f2fe);
+}
+
+.container {
+  padding:20px;
+}
+
+h2 {
+  text-align:center;
+}
+
+button {
+  width:100%;
+  padding:15px;
+  margin:10px 0;
+  border:none;
+  border-radius:10px;
+  background:#4facfe;
+  color:white;
+  font-size:16px;
+}
+
+input {
+  width:100%;
+  padding:12px;
+  margin:10px 0;
+}
+
+ul {
+  list-style:none;
+  padding:0;
+}
+
+li {
+  background:#fff;
+  margin:5px 0;
+  padding:10px;
+  border-radius:8px;
+}
+
+.hidden {
+  display:none;
+}
+</style>
+
+</head>
+<body>
+
+<div class="container">
+
+<!-- TELA PRINCIPAL -->
+<div id="home">
+  <h2>Ambientes</h2>
+
+  <button onclick="abrir('cozinha')">Cozinha</button>
+  <button onclick="abrir('sala')">Sala</button>
+  <button onclick="abrir('quarto')">Quarto</button>
+</div>
+
+<!-- TELA AMBIENTE -->
+<div id="ambiente" class="hidden">
+  <h2 id="titulo"></h2>
+
+  <input type="text" id="texto" placeholder="Digite um item">
+  <button onclick="salvar()">Salvar</button>
+  <button onclick="voltar()">Voltar</button>
+
+  <ul id="lista"></ul>
+</div>
+
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, push, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBgAv-3QaBdPiMoCzY06CO_ayA2NSurLhU",
+  authDomain: "ibc-utensilios.firebaseapp.com",
+  databaseURL: "https://ibc-utensilios-default-rtdb.firebaseio.com",
+  projectId: "ibc-utensilios",
+  storageBucket: "ibc-utensilios.firebasestorage.app",
+  messagingSenderId: "992341147645",
+  appId: "1:992341147645:web:ade43eb54c2d8cff202394"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+let ambienteAtual = "";
+
+// ABRIR AMBIENTE
+window.abrir = function(nome) {
+  ambienteAtual = nome;
+
+  document.getElementById("home").classList.add("hidden");
+  document.getElementById("ambiente").classList.remove("hidden");
+  document.getElementById("titulo").innerText = nome.toUpperCase();
+
+  carregar();
+};
+
+// VOLTAR
+window.voltar = function() {
+  document.getElementById("home").classList.remove("hidden");
+  document.getElementById("ambiente").classList.add("hidden");
+};
+
+// SALVAR
+window.salvar = function() {
+  const texto = document.getElementById("texto").value;
+  if (!texto) return;
+
+  push(ref(db, ambienteAtual), texto);
+  document.getElementById("texto").value = "";
+};
+
+// CARREGAR
+function carregar() {
+  const lista = document.getElementById("lista");
+
+  onValue(ref(db, ambienteAtual), (snapshot) => {
+    lista.innerHTML = "";
+
+    if (!snapshot.exists()) {
+      lista.innerHTML = "<li>Nenhum item ainda</li>";
+      return;
+    }
+
+    snapshot.forEach(child => {
+      const li = document.createElement("li");
+      li.textContent = child.val();
+      lista.appendChild(li);
+    });
+  });
+}
+</script>
+
+</body>
+</html>
