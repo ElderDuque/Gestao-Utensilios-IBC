@@ -17,6 +17,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Great+Vibes&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 <style>
 :root {
   --dark:#0d0505; --dark2:#1a0808; --dark3:#2a0d0d;
@@ -888,7 +889,68 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
+const storage = firebase.storage();
 const DOC_REF = db.collection('ibc').doc('dados');
+
+// ── Utilitários de Storage ─────────────────────────────────────────
+async function uploadFoto(base64, path) {
+  if (!base64 || !base64.startsWith('data:')) return null;
+  try {
+    const ref = storage.ref(path);
+    await ref.putString(base64, 'data_url');
+    return await ref.getDownloadURL();
+  } catch(e) {
+    console.warn('Storage upload error:', e);
+    return null;
+  }
+}
+
+async function deleteFoto(url) {
+  if (!url || !url.includes('firebasestorage')) return;
+  try {
+    await storage.refFromURL(url).delete();
+  } catch(e) { /* ignora se já não existe */ }
+}
+
+// Converte todas as fotos base64 pendentes para URLs do Storage
+async function syncFotosParaStorage() {
+  let alterou = false;
+
+  for (const item of data.items) {
+    if (item.foto && item.foto.startsWith('data:')) {
+      const url = await uploadFoto(item.foto, `items/${item.id}`);
+      if (url) { item.foto = url; alterou = true; }
+    }
+  }
+  for (const amb of data.ambientes) {
+    if (amb.foto && amb.foto.startsWith('data:')) {
+      const url = await uploadFoto(amb.foto, `ambientes/${amb.id}`);
+      if (url) { amb.foto = url; alterou = true; }
+    }
+  }
+  for (const mov of data.moveis) {
+    if (mov.foto && mov.foto.startsWith('data:')) {
+      const url = await uploadFoto(mov.foto, `moveis/${mov.id}/0`);
+      if (url) { mov.foto = url; alterou = true; }
+    }
+    if (mov.fotos && mov.fotos.length) {
+      for (let i = 0; i < mov.fotos.length; i++) {
+        if (mov.fotos[i] && mov.fotos[i].startsWith('data:')) {
+          const url = await uploadFoto(mov.fotos[i], `moveis/${mov.id}/${i}`);
+          if (url) { mov.fotos[i] = url; if (i === 0) mov.foto = url; alterou = true; }
+        }
+      }
+    }
+  }
+
+  if (alterou) {
+    localStorage.setItem('ibcdata2', JSON.stringify(data));
+    await saveToFirebase();
+    renderItems && renderItems();
+    renderAmbientes && renderAmbientes();
+    renderMoveis && renderMoveis();
+  }
+}
 
 // ═══════════════════════════════════════════
 // DADOS — carrega do localStorage imediatamente
@@ -908,16 +970,34 @@ function save() {
   localStorage.setItem('ibcdata2', JSON.stringify(data));
   // Envia para Firebase com debounce de 1 segundo
   clearTimeout(saveTimeout);
-  saveTimeout = setTimeout(saveToFirebase, 1000);
+  saveTimeout = setTimeout(async () => {
+    await saveToFirebase();
+    // Após salvar no Firestore, envia fotos base64 novas para o Storage
+    syncFotosParaStorage();
+  }, 1000);
 }
 
 async function saveToFirebase() {
   try {
-    // Remove fotos (base64) antes de enviar ao Firestore para não exceder o limite de 1MB
+    // Remove apenas fotos base64 (que ainda não foram enviadas ao Storage)
+    // URLs do Firebase Storage são mantidas normalmente
     const dataSemFotos = JSON.parse(JSON.stringify(data));
-    dataSemFotos.ambientes = dataSemFotos.ambientes.map(a => { const x={...a}; x.foto=null; return x; });
-    dataSemFotos.moveis    = dataSemFotos.moveis.map(m => { const x={...m}; x.foto=null; x.fotos=[]; return x; });
-    dataSemFotos.items     = dataSemFotos.items.map(i => { const x={...i}; x.foto=null; return x; });
+    dataSemFotos.ambientes = dataSemFotos.ambientes.map(a => {
+      const x={...a};
+      if (x.foto && x.foto.startsWith('data:')) x.foto = null;
+      return x;
+    });
+    dataSemFotos.moveis = dataSemFotos.moveis.map(m => {
+      const x={...m};
+      if (x.foto && x.foto.startsWith('data:')) x.foto = null;
+      if (x.fotos) x.fotos = x.fotos.map(f => (f && f.startsWith('data:')) ? null : f).filter(Boolean);
+      return x;
+    });
+    dataSemFotos.items = dataSemFotos.items.map(i => {
+      const x={...i};
+      if (x.foto && x.foto.startsWith('data:')) x.foto = null;
+      return x;
+    });
     await DOC_REF.set(dataSemFotos);
     setSyncIndicator('ok');
   } catch(e) {
@@ -932,14 +1012,21 @@ async function loadFromFirebase() {
     if (doc.exists) {
       const cloud = doc.data();
       if (cloud && typeof cloud === 'object') {
-        // Preserva fotos locais (não sincronizadas no Firebase) ao mesclar com a nuvem
+        // Preserva fotos base64 locais (ainda não enviadas ao Storage)
         const localData = JSON.parse(localStorage.getItem('ibcdata2') || '{}');
         const fotosPorAmb   = {};
         const fotosPorMovel = {};
         const fotosPorItem  = {};
-        (localData.ambientes  || []).forEach(a => { if (a.foto) fotosPorAmb[a.id]   = a.foto; });
-        (localData.moveis     || []).forEach(m => { if (m.fotos && m.fotos.length) fotosPorMovel[m.id] = { foto: m.foto, fotos: m.fotos }; else if (m.foto) fotosPorMovel[m.id] = { foto: m.foto, fotos: [m.foto] }; });
-        (localData.items      || []).forEach(i => { if (i.foto) fotosPorItem[i.id]  = i.foto; });
+        (localData.ambientes  || []).forEach(a => { if (a.foto && a.foto.startsWith('data:')) fotosPorAmb[a.id] = a.foto; });
+        (localData.moveis     || []).forEach(m => {
+          const temBase64 = (m.fotos||[]).some(f=>f&&f.startsWith('data:')) || (m.foto&&m.foto.startsWith('data:'));
+          if (temBase64) {
+            if (m.fotos && m.fotos.length) fotosPorMovel[m.id] = { foto: m.foto, fotos: m.fotos };
+            else if (m.foto) fotosPorMovel[m.id] = { foto: m.foto, fotos: [m.foto] };
+          }
+        });
+        (localData.items      || []).forEach(i => { if (i.foto && i.foto.startsWith('data:')) fotosPorItem[i.id] = i.foto; });
+
         data = cloud;
         if (!data.ambientes)   data.ambientes   = [];
         if (!data.tags)        data.tags        = [];
@@ -947,24 +1034,26 @@ async function loadFromFirebase() {
         if (!data.items)       data.items       = [];
         if (!data.emprestimos) data.emprestimos = [];
         if (!data.ocorrencias) data.ocorrencias = [];
-        // Restaura fotos locais nos registros vindos da nuvem
+
+        // Restaura fotos base64 locais pendentes (serão enviadas ao Storage em seguida)
         data.ambientes.forEach(a => { if (fotosPorAmb[a.id])   a.foto = fotosPorAmb[a.id]; });
         data.moveis.forEach(m   => { if (fotosPorMovel[m.id]) { m.foto = fotosPorMovel[m.id].foto; m.fotos = fotosPorMovel[m.id].fotos; } });
         data.items.forEach(i    => { if (fotosPorItem[i.id])   i.foto = fotosPorItem[i.id]; });
+
         localStorage.setItem('ibcdata2', JSON.stringify(data));
         popularSelectAmbientes();
         executarBusca();
         setSyncIndicator('ok');
+
+        // Envia fotos base64 pendentes para o Storage em background
+        setTimeout(() => syncFotosParaStorage(), 500);
       }
     } else {
       // Primeira vez — envia dados locais para nuvem
       if (data.items.length > 0 || data.ambientes.length > 0) {
-        // Remove fotos (base64) antes de enviar ao Firestore para não exceder o limite de 1MB
-    const dataSemFotos = JSON.parse(JSON.stringify(data));
-    dataSemFotos.ambientes = dataSemFotos.ambientes.map(a => { const x={...a}; x.foto=null; return x; });
-    dataSemFotos.moveis    = dataSemFotos.moveis.map(m => { const x={...m}; x.foto=null; x.fotos=[]; return x; });
-    dataSemFotos.items     = dataSemFotos.items.map(i => { const x={...i}; x.foto=null; return x; });
-    await DOC_REF.set(dataSemFotos);
+        await saveToFirebase();
+        // Envia fotos para Storage em background
+        setTimeout(() => syncFotosParaStorage(), 500);
       }
       setSyncIndicator('ok');
     }
