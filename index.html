@@ -913,7 +913,12 @@ function save() {
 
 async function saveToFirebase() {
   try {
-    await DOC_REF.set(data);
+    // Remove fotos (base64) antes de enviar ao Firestore para não exceder o limite de 1MB
+    const dataSemFotos = JSON.parse(JSON.stringify(data));
+    dataSemFotos.ambientes = dataSemFotos.ambientes.map(a => { const x={...a}; x.foto=null; return x; });
+    dataSemFotos.moveis    = dataSemFotos.moveis.map(m => { const x={...m}; x.foto=null; x.fotos=[]; return x; });
+    dataSemFotos.items     = dataSemFotos.items.map(i => { const x={...i}; x.foto=null; return x; });
+    await DOC_REF.set(dataSemFotos);
     setSyncIndicator('ok');
   } catch(e) {
     console.warn('Firebase save error:', e);
@@ -927,7 +932,14 @@ async function loadFromFirebase() {
     if (doc.exists) {
       const cloud = doc.data();
       if (cloud && typeof cloud === 'object') {
-        // Só usa nuvem se tiver dados mais recentes
+        // Preserva fotos locais (não sincronizadas no Firebase) ao mesclar com a nuvem
+        const localData = JSON.parse(localStorage.getItem('ibcdata2') || '{}');
+        const fotosPorAmb   = {};
+        const fotosPorMovel = {};
+        const fotosPorItem  = {};
+        (localData.ambientes  || []).forEach(a => { if (a.foto) fotosPorAmb[a.id]   = a.foto; });
+        (localData.moveis     || []).forEach(m => { if (m.fotos && m.fotos.length) fotosPorMovel[m.id] = { foto: m.foto, fotos: m.fotos }; else if (m.foto) fotosPorMovel[m.id] = { foto: m.foto, fotos: [m.foto] }; });
+        (localData.items      || []).forEach(i => { if (i.foto) fotosPorItem[i.id]  = i.foto; });
         data = cloud;
         if (!data.ambientes)   data.ambientes   = [];
         if (!data.tags)        data.tags        = [];
@@ -935,6 +947,10 @@ async function loadFromFirebase() {
         if (!data.items)       data.items       = [];
         if (!data.emprestimos) data.emprestimos = [];
         if (!data.ocorrencias) data.ocorrencias = [];
+        // Restaura fotos locais nos registros vindos da nuvem
+        data.ambientes.forEach(a => { if (fotosPorAmb[a.id])   a.foto = fotosPorAmb[a.id]; });
+        data.moveis.forEach(m   => { if (fotosPorMovel[m.id]) { m.foto = fotosPorMovel[m.id].foto; m.fotos = fotosPorMovel[m.id].fotos; } });
+        data.items.forEach(i    => { if (fotosPorItem[i.id])   i.foto = fotosPorItem[i.id]; });
         localStorage.setItem('ibcdata2', JSON.stringify(data));
         popularSelectAmbientes();
         executarBusca();
@@ -943,7 +959,12 @@ async function loadFromFirebase() {
     } else {
       // Primeira vez — envia dados locais para nuvem
       if (data.items.length > 0 || data.ambientes.length > 0) {
-        await DOC_REF.set(data);
+        // Remove fotos (base64) antes de enviar ao Firestore para não exceder o limite de 1MB
+    const dataSemFotos = JSON.parse(JSON.stringify(data));
+    dataSemFotos.ambientes = dataSemFotos.ambientes.map(a => { const x={...a}; x.foto=null; return x; });
+    dataSemFotos.moveis    = dataSemFotos.moveis.map(m => { const x={...m}; x.foto=null; x.fotos=[]; return x; });
+    dataSemFotos.items     = dataSemFotos.items.map(i => { const x={...i}; x.foto=null; return x; });
+    await DOC_REF.set(dataSemFotos);
       }
       setSyncIndicator('ok');
     }
@@ -1014,6 +1035,29 @@ function getFotoSrc(id) {
   return el && el.style.display !== 'none' ? el.src : null;
 }
 
+// ── Compressor de imagem (reduz para max 800px e qualidade 0.7) ────
+function comprimirImagem(file, maxPx = 800, qualidade = 0.7) {
+  return new Promise((resolve) => {
+    const r = new FileReader();
+    r.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxPx || height > maxPx) {
+          if (width >= height) { height = Math.round(height * maxPx / width); width = maxPx; }
+          else { width = Math.round(width * maxPx / height); height = maxPx; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', qualidade));
+      };
+      img.src = e.target.result;
+    };
+    r.readAsDataURL(file);
+  });
+}
+
 // ── Múltiplas fotos do Móvel ───────────────────────────────────────
 let movelFotosTemp = [];
 
@@ -1022,13 +1066,11 @@ function adicionarFotosMovel(input) {
   if (!files.length) return;
   let pendentes = files.length;
   files.forEach(file => {
-    const r = new FileReader();
-    r.onload = e => {
-      movelFotosTemp.push(e.target.result);
+    comprimirImagem(file).then(dataUrl => {
+      movelFotosTemp.push(dataUrl);
       pendentes--;
       if (pendentes === 0) renderMovelFotosGrid();
-    };
-    r.readAsDataURL(file);
+    });
   });
   input.value = '';
 }
