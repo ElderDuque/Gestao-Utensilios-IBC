@@ -750,27 +750,52 @@ tr:hover td{background:rgba(255,255,255,0.02)}
       <label>Descrição</label>
       <textarea id="itemDesc" placeholder="Tamanho, cor, estado..." rows="2"></textarea>
     </div>
-    <div class="form-group">
-      <label>📍 Ambiente</label>
-      <select id="itemAmbId" onchange="atualizarMoveis()">
-        <option value="">— Selecionar ambiente —</option>
-      </select>
-    </div>
-    <div class="form-group" id="wrap-movel" style="display:none">
-      <label>🗄️ Móvel</label>
-      <select id="itemMovelId" onchange="atualizarPosicoes()">
-        <option value="">— Selecionar móvel —</option>
-      </select>
-    </div>
-    <div class="form-group" id="wrap-posicao" style="display:none">
-      <label>📦 Posição</label>
-      <select id="itemPosicao">
-        <option value="">— Selecionar posição —</option>
-      </select>
-    </div>
-    <div class="form-group">
-      <label>📝 Obs. de localização</label>
-      <input type="text" id="itemLocObs" placeholder="Ex: fundo da prateleira, caixa azul...">
+    <!-- Localização -->
+    <div style="background:rgba(201,168,76,0.06);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:14px">
+      <div style="font-size:12px;font-weight:700;color:var(--gold-light);letter-spacing:.5px;text-transform:uppercase;margin-bottom:12px">📍 Localização</div>
+
+      <!-- Tipo de localização: 3 opções -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:14px" id="wrap-tipo-loc">
+        <button type="button" id="locTipo-movel" onclick="setLocTipo('movel')"
+          style="padding:8px 4px;border-radius:10px;border:2px solid var(--border);background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.6);font-size:11px;font-weight:600;cursor:pointer;transition:.2s;font-family:'DM Sans',sans-serif;text-align:center">
+          🗄️<br>Dentro de<br>Móvel
+        </button>
+        <button type="button" id="locTipo-montado" onclick="setLocTipo('montado')"
+          style="padding:8px 4px;border-radius:10px;border:2px solid var(--border);background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.6);font-size:11px;font-weight:600;cursor:pointer;transition:.2s;font-family:'DM Sans',sans-serif;text-align:center">
+          🏗️<br>Montado no<br>Ambiente
+        </button>
+        <button type="button" id="locTipo-avulso" onclick="setLocTipo('avulso')"
+          style="padding:8px 4px;border-radius:10px;border:2px solid var(--border);background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.6);font-size:11px;font-weight:600;cursor:pointer;transition:.2s;font-family:'DM Sans',sans-serif;text-align:center">
+          📦<br>Sem local<br>fixo
+        </button>
+      </div>
+
+      <!-- Ambiente (aparece em movel e montado) -->
+      <div class="form-group" id="wrap-amb" style="margin-bottom:10px">
+        <label>Ambiente</label>
+        <select id="itemAmbId" onchange="atualizarMoveis()">
+          <option value="">— Selecionar ambiente —</option>
+        </select>
+      </div>
+
+      <!-- Móvel + Posição (só no modo movel) -->
+      <div class="form-group" id="wrap-movel" style="display:none;margin-bottom:10px">
+        <label>🗄️ Móvel</label>
+        <select id="itemMovelId" onchange="atualizarPosicoes()">
+          <option value="">— Selecionar móvel —</option>
+        </select>
+      </div>
+      <div class="form-group" id="wrap-posicao" style="display:none;margin-bottom:10px">
+        <label>📦 Posição</label>
+        <select id="itemPosicao">
+          <option value="">— Selecionar posição —</option>
+        </select>
+      </div>
+
+      <div class="form-group" style="margin-bottom:0">
+        <label>📝 Obs. de localização</label>
+        <input type="text" id="itemLocObs" placeholder="Ex: fundo da prateleira, caixa azul...">
+      </div>
     </div>
     <div class="form-group">
       <label>📸 Foto do Item</label>
@@ -807,6 +832,7 @@ tr:hover td{background:rgba(255,255,255,0.02)}
       <button type="button" onclick="adicionarCampoExtra()" class="btn btn-ghost btn-sm" style="margin-top:6px">＋ Adicionar campo</button>
     </div>
     <input type="hidden" id="editItemId">
+    <input type="hidden" id="itemLocTipo" value="avulso">
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('item')">Cancelar</button>
       <button class="btn btn-gold" onclick="salvarItem()">💾 Salvar</button>
@@ -1378,15 +1404,14 @@ function abrirAmbiente(id) {
   document.getElementById('btn-add-loc').onclick = () => abrirModalMovel(id);
   atualizarBreadcrumb();
 
-  // Itens montados diretamente no ambiente (sem móvel)
+  // Seção "Itens Montados" — sempre visível dentro do ambiente
   const itensMontados = data.items.filter(i => i.ambId === id && !i.movelId);
   const secMontados = document.getElementById('itens-montados-section');
   const gridMontados = document.getElementById('itens-montados-grid');
-  const btnAddMontado = document.getElementById('btn-add-montado');
-  btnAddMontado.onclick = () => abrirModalItem(id, null, true);
+  secMontados.style.display = 'block';
+  document.getElementById('btn-add-montado').onclick = () => abrirModalItem(id, null, true);
 
   if (itensMontados.length) {
-    secMontados.style.display = 'block';
     gridMontados.innerHTML = itensMontados.map(it => {
       const fotoHtml = it.foto
         ? `<div class="movel-foto"><img src="${it.foto}" alt="${it.nome}"></div>`
@@ -1407,7 +1432,7 @@ function abrirAmbiente(id) {
       </div>`;
     }).join('');
   } else {
-    secMontados.style.display = 'none';
+    gridMontados.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:18px 0;color:var(--muted);font-size:13px">Nenhum item montado aqui ainda. Clique em "＋ Adicionar".</div>`;
   }
 
   const moveis = data.moveis.filter(m=>m.ambId===id);
@@ -1415,12 +1440,7 @@ function abrirAmbiente(id) {
   const empty = document.getElementById('moveis-empty');
   const divisor = document.getElementById('moveis-divisor');
 
-  // Mostrar divisor "Móveis" só se tiver itens montados E móveis
-  divisor.style.display = (itensMontados.length && moveis.length) ? 'block' : 'none';
-
-  if (!moveis.length && !itensMontados.length) {
-    grid.innerHTML = ''; empty.style.display = 'block'; return;
-  }
+  divisor.style.display = moveis.length ? 'block' : 'none';
   empty.style.display = 'none';
 
   if (!moveis.length) { grid.innerHTML = ''; return; }
@@ -1702,24 +1722,58 @@ function excluirMovel(id) {
 // ═══════════════════════════════════════════
 // ITENS
 // ═══════════════════════════════════════════
+
+// Define o tipo de localização no modal de item
+function setLocTipo(tipo) {
+  // Atualiza visuais dos botões
+  ['movel','montado','avulso'].forEach(t => {
+    const btn = document.getElementById('locTipo-'+t);
+    if (!btn) return;
+    const ativo = t === tipo;
+    btn.style.background = ativo ? 'rgba(201,168,76,0.25)' : 'rgba(255,255,255,0.06)';
+    btn.style.borderColor = ativo ? 'var(--gold)' : 'var(--border)';
+    btn.style.color = ativo ? 'var(--gold-light)' : 'rgba(255,255,255,0.6)';
+  });
+  document.getElementById('wrap-amb').style.display   = tipo === 'avulso' ? 'none' : 'block';
+  document.getElementById('wrap-movel').style.display  = tipo === 'movel'  ? 'block' : 'none';
+  document.getElementById('wrap-posicao').style.display = 'none';
+  // Limpa seleções ao trocar tipo
+  if (tipo !== 'movel') {
+    document.getElementById('itemMovelId').value = '';
+    document.getElementById('itemPosicao').value = '';
+  }
+  if (tipo === 'avulso') {
+    document.getElementById('itemAmbId').value = '';
+  }
+  // Guarda tipo atual num campo oculto
+  document.getElementById('itemLocTipo').value = tipo;
+}
+
 function abrirModalItem(ambId, movelId, montado) {
   ['itemNome','itemDesc','itemLocObs'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('itemQtd').value='0';
   document.getElementById('itemQtdMin').value='0';
   document.getElementById('itemCat').value='Panela';
   document.getElementById('editItemId').value='';
-  document.getElementById('tituloModalItem').textContent = montado ? '🏗️ Novo Item Montado no Ambiente' : '＋ Novo Item';
+  document.getElementById('tituloModalItem').textContent = '＋ Novo Item';
   resetFoto('itemFotoPreview','itemFotoPlaceholder');
   popularSelectAmbientes();
   document.getElementById('itemAmbId').value = ambId||'';
-  document.getElementById('wrap-movel').style.display = montado ? 'none' : 'none';
-  document.getElementById('wrap-posicao').style.display='none';
   document.getElementById('itemValidade').value='';
   renderTagsSelect([]);
   renderCamposExtras([]);
-  if (ambId && !montado) {
-    atualizarMoveis();
-    if (movelId) setTimeout(()=>{document.getElementById('itemMovelId').value=movelId;atualizarPosicoes();},50);
+
+  // Define tipo de localização inicial
+  if (montado) {
+    setLocTipo('montado');
+  } else if (movelId || ambId) {
+    setLocTipo('movel');
+    if (ambId) {
+      atualizarMoveis();
+      if (movelId) setTimeout(()=>{document.getElementById('itemMovelId').value=movelId;atualizarPosicoes();},50);
+    }
+  } else {
+    setLocTipo('avulso');
   }
   openModal('item');
 }
@@ -1746,19 +1800,27 @@ function editarItem(id) {
   }
   popularSelectAmbientes();
   document.getElementById('itemAmbId').value=item.ambId||'';
-  atualizarMoveis();
-  setTimeout(()=>{
-    if(item.movelId){document.getElementById('itemMovelId').value=item.movelId;atualizarPosicoes();}
-    setTimeout(()=>{if(item.posicao)document.getElementById('itemPosicao').value=item.posicao;},60);
-  },60);
+
+  // Detecta tipo de localização
+  const tipo = item.locTipo || (item.movelId ? 'movel' : item.ambId ? 'montado' : 'avulso');
+  setLocTipo(tipo);
+
+  if (tipo === 'movel') {
+    atualizarMoveis();
+    setTimeout(()=>{
+      if(item.movelId){document.getElementById('itemMovelId').value=item.movelId;atualizarPosicoes();}
+      setTimeout(()=>{if(item.posicao)document.getElementById('itemPosicao').value=item.posicao;},60);
+    },60);
+  }
   openModal('item');
 }
 
 function atualizarMoveis() {
   const ambId = document.getElementById('itemAmbId').value;
+  const tipo = document.getElementById('itemLocTipo').value;
   const wrap = document.getElementById('wrap-movel');
   const sel = document.getElementById('itemMovelId');
-  if (!ambId) { wrap.style.display='none'; document.getElementById('wrap-posicao').style.display='none'; return; }
+  if (!ambId || tipo !== 'movel') { wrap.style.display='none'; document.getElementById('wrap-posicao').style.display='none'; return; }
   const moveis = data.moveis.filter(m=>m.ambId===ambId);
   sel.innerHTML = '<option value="">— Selecionar móvel —</option>' +
     moveis.map(m=>`<option value="${m.id}">${movelEmoji[m.tipo]||'🗄️'} ${m.nome}</option>`).join('');
@@ -1784,13 +1846,19 @@ function salvarItem() {
   if (!nome || qtd==='') { alert('Preencha nome e quantidade!'); return; }
   const foto = getFotoSrc('itemFotoPreview');
   const id = document.getElementById('editItemId').value;
+  const locTipo = document.getElementById('itemLocTipo').value || 'avulso';
+
+  // Resolve ambId/movelId/posicao conforme tipo
+  const ambId   = locTipo !== 'avulso' ? document.getElementById('itemAmbId').value : '';
+  const movelId = locTipo === 'movel'  ? document.getElementById('itemMovelId').value : '';
+  const posicao = locTipo === 'movel'  ? document.getElementById('itemPosicao').value : '';
+
   const obj = {
     nome, cat:document.getElementById('itemCat').value,
     qtd:Number(qtd), qtdMin:Number(document.getElementById('itemQtdMin').value||0),
     desc:document.getElementById('itemDesc').value,
-    ambId:document.getElementById('itemAmbId').value,
-    movelId:document.getElementById('itemMovelId').value,
-    posicao:document.getElementById('itemPosicao').value,
+    ambId, movelId, posicao,
+    locTipo,
     locObs:document.getElementById('itemLocObs').value,
     validade:document.getElementById('itemValidade').value,
     tags:getTagsSelecionadas(),
