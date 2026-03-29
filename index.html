@@ -599,9 +599,19 @@ tr:hover td{background:rgba(255,255,255,0.02)}
               style="background:#333;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer">🖼️ Galeria</button>
           </div>
         </div>
-        <img id="ambFotoPreview" class="photo-preview" onclick="document.getElementById('ambFotoGal').click()">
-        <input type="file" id="ambFotoCam" accept="image/*" capture="environment" onchange="prevFoto(this,'ambFotoPreview','ambFotoPlaceholder')" style="display:none">
-        <input type="file" id="ambFotoGal" accept="image/*" onchange="prevFoto(this,'ambFotoPreview','ambFotoPlaceholder')" style="display:none">
+        <div id="ambFotoPreviewWrap" style="display:none">
+          <img id="ambFotoPreview" class="photo-preview" style="display:block;cursor:pointer" onclick="document.getElementById('ambFotoGal').click()">
+          <div style="display:flex;gap:8px;justify-content:center;margin-top:10px">
+            <button type="button" onclick="document.getElementById('ambFotoCam').click()"
+              style="background:#8B2020;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer">📸 Trocar (Câmera)</button>
+            <button type="button" onclick="document.getElementById('ambFotoGal').click()"
+              style="background:#333;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer">🖼️ Trocar (Galeria)</button>
+            <button type="button" onclick="removerFotoAmb()"
+              style="background:rgba(201,76,76,0.2);color:#f88;border:1px solid rgba(201,76,76,0.3);border-radius:8px;padding:7px 10px;font-size:12px;cursor:pointer">🗑️</button>
+          </div>
+        </div>
+        <input type="file" id="ambFotoCam" accept="image/*" capture="environment" onchange="prevFotoAmb(this)" style="display:none">
+        <input type="file" id="ambFotoGal" accept="image/*" onchange="prevFotoAmb(this)" style="display:none">
       </div>
     </div>
     <input type="hidden" id="editAmbId">
@@ -1374,6 +1384,9 @@ function renderLocalidades() {
   document.getElementById('loc-titulo').textContent = '📍 Localidades';
   document.getElementById('btn-add-loc').textContent = '+ Novo Ambiente';
   document.getElementById('btn-add-loc').onclick = () => abrirModalAmbiente();
+  // Oculta botão de editar ambiente se existir
+  const btnEdit = document.getElementById('btn-edit-ambiente');
+  if (btnEdit) btnEdit.style.display = 'none';
 
   const grid = document.getElementById('ambientes-grid');
   const empty = document.getElementById('ambientes-empty');
@@ -1402,6 +1415,20 @@ function abrirAmbiente(id) {
   document.getElementById('loc-titulo').textContent = (amb.emoji||'🏠')+' '+amb.nome;
   document.getElementById('btn-add-loc').textContent = '+ Novo Móvel';
   document.getElementById('btn-add-loc').onclick = () => abrirModalMovel(id);
+
+  // Botão de editar ambiente (ícone lápis ao lado do título)
+  let btnEdit = document.getElementById('btn-edit-ambiente');
+  if (!btnEdit) {
+    btnEdit = document.createElement('button');
+    btnEdit.id = 'btn-edit-ambiente';
+    btnEdit.className = 'btn btn-ghost btn-sm';
+    btnEdit.style.cssText = 'margin-left:8px;font-size:13px;vertical-align:middle';
+    document.getElementById('loc-titulo').after(btnEdit);
+  }
+  btnEdit.textContent = '✏️ Editar';
+  btnEdit.onclick = () => abrirModalAmbiente(id);
+  btnEdit.style.display = 'inline-block';
+
   atualizarBreadcrumb();
 
   // Seção "Itens Montados" — sempre visível dentro do ambiente
@@ -1469,6 +1496,9 @@ function abrirMovel(id) {
   document.getElementById('loc-titulo').textContent = (movelEmoji[mov.tipo]||'🗄️')+' '+mov.nome;
   document.getElementById('btn-add-loc').textContent = '+ Novo Item aqui';
   document.getElementById('btn-add-loc').onclick = () => abrirModalItem(mov.ambId, id);
+  // Oculta botão de editar ambiente
+  const btnEdit = document.getElementById('btn-edit-ambiente');
+  if (btnEdit) btnEdit.style.display = 'none';
   atualizarBreadcrumb();
 
   const posicoes = mov.posicoes || [];
@@ -1604,6 +1634,27 @@ function atualizarBreadcrumb() {
   bc.innerHTML = html;
 }
 
+function mostrarFotoAmb(src) {
+  document.getElementById('ambFotoPreview').src = src;
+  document.getElementById('ambFotoPlaceholder').style.display = 'none';
+  document.getElementById('ambFotoPreviewWrap').style.display = 'block';
+}
+
+function removerFotoAmb() {
+  document.getElementById('ambFotoPreview').src = '';
+  document.getElementById('ambFotoPlaceholder').style.display = 'block';
+  document.getElementById('ambFotoPreviewWrap').style.display = 'none';
+  document.getElementById('ambFotoCam').value = '';
+  document.getElementById('ambFotoGal').value = '';
+}
+
+function prevFotoAmb(input) {
+  if (!input.files || !input.files[0]) return;
+  const reader = new FileReader();
+  reader.onload = e => mostrarFotoAmb(e.target.result);
+  reader.readAsDataURL(input.files[0]);
+}
+
 // ═══════════════════════════════════════════
 // MODAL AMBIENTE
 // ═══════════════════════════════════════════
@@ -1612,7 +1663,7 @@ function abrirModalAmbiente(id) {
   document.getElementById('ambEmoji').value='🏠';
   document.getElementById('ambDesc').value='';
   document.getElementById('editAmbId').value='';
-  resetFoto('ambFotoPreview','ambFotoPlaceholder');
+  removerFotoAmb();
   document.getElementById('tituloModalAmbiente').textContent = '🏠 Novo Ambiente';
   if (id) {
     const a = data.ambientes.find(x=>x.id===id);
@@ -1622,11 +1673,7 @@ function abrirModalAmbiente(id) {
       document.getElementById('ambNome').value = a.nome;
       document.getElementById('ambEmoji').value = a.emoji||'🏠';
       document.getElementById('ambDesc').value = a.desc||'';
-      if (a.foto) {
-        document.getElementById('ambFotoPreview').src=a.foto;
-        document.getElementById('ambFotoPreview').style.display='block';
-        document.getElementById('ambFotoPlaceholder').style.display='none';
-      }
+      if (a.foto) mostrarFotoAmb(a.foto);
     }
   }
   openModal('ambiente');
@@ -1635,7 +1682,8 @@ function abrirModalAmbiente(id) {
 function salvarAmbiente() {
   const nome = document.getElementById('ambNome').value.trim();
   if (!nome) { alert('Informe o nome!'); return; }
-  const foto = getFotoSrc('ambFotoPreview');
+  const preview = document.getElementById('ambFotoPreview');
+  const foto = (preview.src && preview.src !== window.location.href) ? preview.src : null;
   const id = document.getElementById('editAmbId').value;
   const obj = { nome, emoji: document.getElementById('ambEmoji').value.trim()||'🏠',
     desc: document.getElementById('ambDesc').value.trim(), foto };
@@ -1646,6 +1694,8 @@ function salvarAmbiente() {
     obj.id = 'A'+Date.now(); data.ambientes.push(obj);
   }
   save(); closeModal('ambiente'); renderLocalidades(); popularSelectAmbientes();
+  // Se estava dentro do ambiente, recarrega a tela
+  if (navAmbienteId === id) abrirAmbiente(id);
 }
 
 function excluirAmbiente(id) {
