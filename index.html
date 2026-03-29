@@ -28,6 +28,7 @@
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:"DM Sans",sans-serif;background:var(--dark);color:#e8ddd0;min-height:100vh}
 input,select,textarea{font-family:"DM Sans",sans-serif;outline:none}
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
 /* HEADER */
 header{background:linear-gradient(135deg,var(--dark2),var(--dark3));border-bottom:2px solid var(--gold);
@@ -382,6 +383,9 @@ tr:hover td{background:rgba(255,255,255,0.02)}
       <div style="display:flex;align-items:center;gap:4px;margin-top:2px;font-size:10px;color:#4caf7a">
         <span id="sync-dot" style="width:8px;height:8px;border-radius:50%;background:#4caf7a;display:inline-block"></span>
         <span id="sync-txt">Online</span>
+        <button id="btn-force-sync" onclick="forceSyncFromFirebase()"
+          title="Forçar atualização do servidor"
+          style="background:none;border:none;color:var(--gold);font-size:12px;cursor:pointer;padding:0 2px;line-height:1;margin-left:2px">🔄</button>
       </div>
     </div>
   </div>
@@ -1122,11 +1126,36 @@ function setSyncIndicator(status) {
     ok:      { bg: '#4caf7a', text: '☁️ Salvo' },
     saving:  { bg: '#e8c97a', text: '⏳ Salvando...' },
     error:   { bg: '#c94c4c', text: '⚠️ Erro' },
-    offline: { bg: '#c94c4c', text: '📵 Offline' }
+    offline: { bg: '#c94c4c', text: '📵 Offline' },
+    syncing: { bg: '#e8c97a', text: '🔄 Atualizando...' }
   };
   const s = map[status] || map.ok;
   dot.style.background = s.bg;
   txt.textContent = s.text;
+}
+
+async function forceSyncFromFirebase() {
+  const btn = document.getElementById('btn-force-sync');
+  if (btn) { btn.style.animation = 'spin 1s linear infinite'; btn.style.display = 'inline-block'; }
+  setSyncIndicator('syncing');
+  try {
+    // Limpa localStorage para forçar leitura completa do Firebase
+    localStorage.removeItem('ibcdata2');
+    await loadFromFirebase();
+    // Re-renderiza tudo
+    popularSelectAmbientes();
+    executarBusca();
+    renderItems();
+    setSyncIndicator('ok');
+    // Feedback visual
+    const txt = document.getElementById('sync-txt');
+    if (txt) { txt.textContent = '✅ Atualizado!'; setTimeout(() => setSyncIndicator('ok'), 2000); }
+  } catch(e) {
+    setSyncIndicator('error');
+    alert('Erro ao atualizar. Verifique sua conexão e tente novamente.');
+  } finally {
+    if (btn) btn.style.animation = '';
+  }
 }
 
 const catEmoji = {Panela:'🍳',Prato:'🍽️',Copo:'🥤',Tigela:'🥣',Talheres:'🥄',Outro:'📦'};
