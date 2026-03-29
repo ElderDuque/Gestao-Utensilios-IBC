@@ -439,10 +439,25 @@ tr:hover td{background:rgba(255,255,255,0.02)}
 
   <!-- Nível 2: Móveis dentro do ambiente -->
   <div id="nivel-moveis" style="display:none">
+
+    <!-- Itens montados diretamente no ambiente -->
+    <div id="itens-montados-section" style="display:none;margin-bottom:20px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div style="font-size:13px;font-weight:700;color:var(--gold-light);letter-spacing:.5px;text-transform:uppercase">🏗️ Itens Montados no Ambiente</div>
+        <button class="btn btn-ghost btn-sm" id="btn-add-montado">＋ Adicionar</button>
+      </div>
+      <div class="moveis-grid" id="itens-montados-grid"></div>
+    </div>
+
+    <!-- Label móveis (só aparece se tiver itens montados E móveis) -->
+    <div id="moveis-divisor" style="display:none;margin-bottom:10px">
+      <div style="font-size:13px;font-weight:700;color:var(--gold-light);letter-spacing:.5px;text-transform:uppercase">🗄️ Móveis</div>
+    </div>
+
     <div class="moveis-grid" id="moveis-grid"></div>
     <div class="empty" id="moveis-empty" style="display:none">
       <div class="empty-icon">🗄️</div>
-      <p>Nenhum móvel cadastrado neste ambiente.</p>
+      <p>Nenhum móvel ou item montado neste ambiente.</p>
     </div>
   </div>
 
@@ -1363,11 +1378,53 @@ function abrirAmbiente(id) {
   document.getElementById('btn-add-loc').onclick = () => abrirModalMovel(id);
   atualizarBreadcrumb();
 
+  // Itens montados diretamente no ambiente (sem móvel)
+  const itensMontados = data.items.filter(i => i.ambId === id && !i.movelId);
+  const secMontados = document.getElementById('itens-montados-section');
+  const gridMontados = document.getElementById('itens-montados-grid');
+  const btnAddMontado = document.getElementById('btn-add-montado');
+  btnAddMontado.onclick = () => abrirModalItem(id, null, true);
+
+  if (itensMontados.length) {
+    secMontados.style.display = 'block';
+    gridMontados.innerHTML = itensMontados.map(it => {
+      const fotoHtml = it.foto
+        ? `<div class="movel-foto"><img src="${it.foto}" alt="${it.nome}"></div>`
+        : `<div class="movel-foto" style="font-size:36px">${catEmoji[it.cat]||'📦'}</div>`;
+      const qtd = Number(it.qtd);
+      const qtdCor = qtd === 0 ? 'var(--red)' : qtd <= 2 ? 'var(--orange)' : 'var(--green)';
+      return `<div class="movel-card" onclick="verItem('${it.id}')">
+        ${fotoHtml}
+        <div class="movel-info">
+          <div class="movel-nome">${it.nome}</div>
+          <div class="movel-sub">${catEmoji[it.cat]||'📦'} ${it.cat||''}</div>
+          <div class="movel-count" style="color:${qtdCor}">${qtd} un.</div>
+          <div style="display:flex;gap:4px;margin-top:6px">
+            <button onclick="event.stopPropagation();editarItem('${it.id}')" class="btn btn-ghost btn-sm" style="flex:1;font-size:11px;padding:4px 6px">✏️</button>
+            <button onclick="event.stopPropagation();excluirItem('${it.id}')" class="btn btn-red btn-sm" style="font-size:11px;padding:4px 6px">🗑️</button>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  } else {
+    secMontados.style.display = 'none';
+  }
+
   const moveis = data.moveis.filter(m=>m.ambId===id);
   const grid = document.getElementById('moveis-grid');
   const empty = document.getElementById('moveis-empty');
-  if (!moveis.length) { grid.innerHTML=''; empty.style.display='block'; return; }
+  const divisor = document.getElementById('moveis-divisor');
+
+  // Mostrar divisor "Móveis" só se tiver itens montados E móveis
+  divisor.style.display = (itensMontados.length && moveis.length) ? 'block' : 'none';
+
+  if (!moveis.length && !itensMontados.length) {
+    grid.innerHTML = ''; empty.style.display = 'block'; return;
+  }
   empty.style.display = 'none';
+
+  if (!moveis.length) { grid.innerHTML = ''; return; }
+
   grid.innerHTML = moveis.map(m => {
     const n = data.items.filter(i=>i.movelId===m.id).length;
     const fotoHtml = m.foto
@@ -1645,22 +1702,22 @@ function excluirMovel(id) {
 // ═══════════════════════════════════════════
 // ITENS
 // ═══════════════════════════════════════════
-function abrirModalItem(ambId, movelId) {
+function abrirModalItem(ambId, movelId, montado) {
   ['itemNome','itemDesc','itemLocObs'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('itemQtd').value='0';
   document.getElementById('itemQtdMin').value='0';
   document.getElementById('itemCat').value='Panela';
   document.getElementById('editItemId').value='';
-  document.getElementById('tituloModalItem').textContent='＋ Novo Item';
+  document.getElementById('tituloModalItem').textContent = montado ? '🏗️ Novo Item Montado no Ambiente' : '＋ Novo Item';
   resetFoto('itemFotoPreview','itemFotoPlaceholder');
   popularSelectAmbientes();
   document.getElementById('itemAmbId').value = ambId||'';
-  document.getElementById('wrap-movel').style.display='none';
+  document.getElementById('wrap-movel').style.display = montado ? 'none' : 'none';
   document.getElementById('wrap-posicao').style.display='none';
   document.getElementById('itemValidade').value='';
   renderTagsSelect([]);
   renderCamposExtras([]);
-  if (ambId) {
+  if (ambId && !montado) {
     atualizarMoveis();
     if (movelId) setTimeout(()=>{document.getElementById('itemMovelId').value=movelId;atualizarPosicoes();},50);
   }
@@ -1755,6 +1812,8 @@ function excluirItem(id) {
   if (!confirm('Excluir este item?')) return;
   data.items=data.items.filter(i=>i.id!==id);
   save(); renderItems();
+  if (navMovelId) abrirMovel(navMovelId);
+  else if (navAmbienteId) abrirAmbiente(navAmbienteId);
 }
 
 function popularSelectAmbientes() {
