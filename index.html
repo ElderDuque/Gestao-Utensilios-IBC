@@ -1808,6 +1808,15 @@ function renderItems() {
           ${(item.tags||[]).map(tid=>{const t=data.tags.find(x=>x.id===tid);return t?`<span class="tag-chip" style="background:${t.cor}22;border-color:${t.cor};color:${t.cor}">${t.emoji||''} ${t.nome}</span>`:''}).join('')}
         </div>
         ${(()=>{const v=calcValidadeStatus(item.validade);return v?`<div class="tag-chip ${v.cls}" style="margin-bottom:6px">${v.txt}</div>`:''})()}
+        <div style="margin-bottom:8px">
+          <button onclick="toggleDisponivel('${item.id}');event.stopPropagation()"
+            style="width:100%;padding:5px 10px;border-radius:8px;border:none;cursor:pointer;font-size:12px;font-weight:600;transition:.2s;
+              background:${item.dispEmprestimo===false?'rgba(201,76,76,0.18)':'rgba(76,175,122,0.18)'};
+              color:${item.dispEmprestimo===false?'#f88':'#4caf7a'};
+              border:1px solid ${item.dispEmprestimo===false?'rgba(201,76,76,0.35)':'rgba(76,175,122,0.35)'}">
+            ${item.dispEmprestimo===false?'🔴 Indisponível p/ empréstimo':'🟢 Disponível p/ empréstimo'}
+          </button>
+        </div>
         <div class="item-actions">
           <div class="qty-ctrl">
             <button class="qty-minus" onclick="ajustarQtd('${item.id}',-1);event.stopPropagation()">−</button>
@@ -2282,9 +2291,9 @@ function gerarFolder() {
     return Math.max(0, Number(item.qtd) - emprestado - Math.min(danificado, Number(item.qtd)));
   }
 
-  // Agrupar itens por categoria
+  // Agrupar itens por categoria — excluir itens marcados como indisponíveis p/ empréstimo
   const cats = {};
-  data.items.forEach(item => {
+  data.items.filter(item => item.dispEmprestimo !== false).forEach(item => {
     const cat = item.cat || 'Outro';
     if (!cats[cat]) cats[cat] = [];
     cats[cat].push(item);
@@ -2333,8 +2342,8 @@ function gerarFolder() {
       </div>`;
   });
 
-  if (!data.items.length) {
-    alert('Nenhum item cadastrado ainda! Cadastre itens primeiro.');
+  if (!data.items.filter(item => item.dispEmprestimo !== false).length) {
+    alert('Nenhum item disponível para empréstimo! Ative a disponibilidade de ao menos um item na aba Itens.');
     return;
   }
 
@@ -2423,6 +2432,15 @@ function gerarFolder() {
   const url = URL.createObjectURL(blob);
   const w = window.open(url, '_blank');
   if (!w) alert('Permita pop-ups para abrir o folder!');
+}
+
+// ── Toggle disponibilidade para empréstimo ──────────────────────────
+function toggleDisponivel(id) {
+  const item = data.items.find(i => i.id === id);
+  if (!item) return;
+  item.dispEmprestimo = item.dispEmprestimo === false ? true : false;
+  save();
+  renderItems();
 }
 
 // ── Ajuste rápido de quantidade ────────────────────────────────────
