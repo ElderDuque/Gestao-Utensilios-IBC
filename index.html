@@ -364,26 +364,16 @@ tr:hover td{background:rgba(255,255,255,0.02)}
   </div>
 </div>
 <script>
-// RODA IMEDIATAMENTE — não depende de nenhum evento, Firebase ou fonte
+// Remove o splash IMEDIATAMENTE - roda antes de qualquer outra coisa
 (function(){
-  function killSplash(){
+  function matar(){
     var s=document.getElementById('splash');
-    if(!s||s._dead)return;
-    s._dead=true;
-    s.style.transition='opacity 0.6s ease';
-    s.style.opacity='0';
-    s.style.visibility='hidden';
-    s.style.pointerEvents='none';
-    setTimeout(function(){if(s&&s.parentNode)s.parentNode.removeChild(s);},700);
+    if(s&&s.parentNode){ s.parentNode.removeChild(s); }
   }
-  // Dispara em 2s garantidos — independente do resto da página
-  setTimeout(killSplash, 2000);
-  // Dispara quando DOM estiver pronto (pode ser antes dos 2s)
-  if(document.readyState==='loading'){
-    document.addEventListener('DOMContentLoaded',function(){setTimeout(killSplash,500);});
-  } else {
-    setTimeout(killSplash,500);
-  }
+  // Fallback 1: 1.5s após este script rodar (roda no topo do body)
+  setTimeout(matar,1500);
+  // Fallback 2: quando DOM estiver pronto
+  document.addEventListener('DOMContentLoaded',function(){ setTimeout(matar,300); });
 })();
 </script>
 
@@ -3018,25 +3008,7 @@ if('serviceWorker' in navigator) {
 
 // ═══════════════════════════════════════════
 // SPLASH & INIT
-// ═══════════════════════════════════════════
-// ═══════════════════════════════════════════
-// SPLASH — remoção garantida, sem depender de nenhum evento
-// ═══════════════════════════════════════════
-(function() {
-  function removerSplash() {
-    var s = document.getElementById('splash');
-    if (!s || s._gone) return;
-    s._gone = true;
-    s.classList.add('hide');
-    setTimeout(function() { if (s.parentNode) s.parentNode.removeChild(s); }, 800);
-  }
-  // Disparo 1: assim que o DOM estiver pronto (ignora fontes, firebase, etc)
-  document.addEventListener('DOMContentLoaded', function() {
-    setTimeout(removerSplash, 1200);
-  });
-  // Disparo 2: fallback absoluto — 3s após o script rodar, aconteça o que acontecer
-  setTimeout(removerSplash, 3000);
-})();
+// splash removido pelo script inline no topo do body
 
 window.addEventListener('DOMContentLoaded', ()=>{
   popularSelectAmbientes();
