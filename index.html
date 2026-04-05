@@ -14,7 +14,8 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Great+Vibes&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Great+Vibes&family=DM+Sans:wght@400;500;600&display=swap&font-display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Great+Vibes&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet"></noscript>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
@@ -2995,25 +2996,24 @@ if('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════
 // SPLASH & INIT
 // ═══════════════════════════════════════════
-window.addEventListener('load',()=>{
-  // Splash some SEMPRE após 2 segundos — sem depender de nada
-  setTimeout(()=>{
-    const splash = document.getElementById('splash');
-    if (splash) {
-      splash.classList.add('hide');
-      setTimeout(()=>{ if(splash.parentNode) splash.remove(); },900);
-    }
-  }, 2000);
-});
-
-// Segurança extra: força remoção do splash após 4s mesmo que 'load' não dispare
-setTimeout(()=>{
+// ═══════════════════════════════════════════
+// SPLASH — remove sempre, sem depender de window.load
+// ═══════════════════════════════════════════
+function removerSplash() {
   const splash = document.getElementById('splash');
-  if (splash && splash.parentNode) {
-    splash.classList.add('hide');
-    setTimeout(()=>{ if(splash.parentNode) splash.remove(); },900);
-  }
-}, 4000);
+  if (!splash || splash._removendo) return;
+  splash._removendo = true;
+  splash.classList.add('hide');
+  setTimeout(() => { if (splash.parentNode) splash.parentNode.removeChild(splash); }, 950);
+}
+// Garante remoção após 2.5s no máximo — não depende de Firebase nem fontes
+setTimeout(removerSplash, 2500);
+// Também remove quando o DOM estiver pronto (caso seja rápido)
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => setTimeout(removerSplash, 800));
+} else {
+  setTimeout(removerSplash, 800);
+}
 
 window.addEventListener('DOMContentLoaded', ()=>{
   popularSelectAmbientes();
