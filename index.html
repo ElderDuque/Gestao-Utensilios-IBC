@@ -15,9 +15,9 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Great+Vibes&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 <style>
 :root {
   --dark:#0d0505; --dark2:#1a0808; --dark3:#2a0d0d;
@@ -991,10 +991,27 @@ const firebaseConfig = {
   messagingSenderId: "992341147645",
   appId: "1:992341147645:web:ade43eb54c2d8cff202394"
 };
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
-const storage = firebase.storage();
-const DOC_REF = db.collection('ibc').doc('dados');
+// ── Firebase init seguro (scripts carregam com defer) ──────────────
+let db, storage, DOC_REF;
+function initFirebase() {
+  if (typeof firebase === 'undefined') return false;
+  if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+  }
+  db = firebase.firestore();
+  storage = firebase.storage();
+  DOC_REF = db.collection('ibc').doc('dados');
+  return true;
+}
+// Tenta inicializar agora; se scripts ainda não carregaram, tenta depois
+if (!initFirebase()) {
+  document.addEventListener('DOMContentLoaded', () => {
+    let t = setInterval(() => {
+      if (initFirebase()) clearInterval(t);
+    }, 200);
+    setTimeout(() => clearInterval(t), 10000);
+  });
+}
 
 // ── Utilitários de Storage ─────────────────────────────────────────
 async function uploadFoto(base64, path) {
@@ -1082,6 +1099,7 @@ function save() {
 }
 
 async function saveToFirebase() {
+  if (!DOC_REF) return;
   try {
     // Remove apenas fotos base64 (que ainda não foram enviadas ao Storage)
     // URLs do Firebase Storage são mantidas normalmente
@@ -1111,6 +1129,7 @@ async function saveToFirebase() {
 }
 
 async function loadFromFirebase() {
+  if (!DOC_REF) { setSyncIndicator('offline'); return; }
   try {
     const doc = await DOC_REF.get();
     if (doc.exists) {
@@ -2987,11 +3006,31 @@ window.addEventListener('load',()=>{
   }, 2000);
 });
 
+// Segurança extra: força remoção do splash após 4s mesmo que 'load' não dispare
+setTimeout(()=>{
+  const splash = document.getElementById('splash');
+  if (splash && splash.parentNode) {
+    splash.classList.add('hide');
+    setTimeout(()=>{ if(splash.parentNode) splash.remove(); },900);
+  }
+}, 4000);
+
 window.addEventListener('DOMContentLoaded', ()=>{
   popularSelectAmbientes();
   executarBusca();
   // Sincroniza com Firebase 1.5s após abrir — não bloqueia
-  setTimeout(() => loadFromFirebase(), 1500);
+  // Aguarda scripts do Firebase carregarem (defer) antes de tentar
+  function tentarFirebase(tentativas) {
+    if (typeof firebase !== 'undefined' && firebase.apps) {
+      setTimeout(() => loadFromFirebase(), 0);
+    } else if (tentativas > 0) {
+      setTimeout(() => tentarFirebase(tentativas - 1), 300);
+    } else {
+      console.warn('Firebase não carregou — modo offline');
+      setSyncIndicator('offline');
+    }
+  }
+  setTimeout(() => tentarFirebase(10), 1500);
 });
 </script>
 </body>
