@@ -1570,6 +1570,33 @@ function abrirMovel(id) {
   navMovelId = id;
   const mov = data.moveis.find(m=>m.id===id);
   const amb = data.ambientes.find(a=>a.id===mov.ambId);
+
+  // ── Migração automática: corrige itens salvos com formato legado ──────
+  // Ex: "Porta 3 > Prateleira superior" → "Porta dos Cálices > Prateleira superior"
+  if (mov.temPortas && mov.portasConfig && mov.portasConfig.length) {
+    let precisaSalvar = false;
+    mov.portasConfig.forEach(portaObj => {
+      const pNum = portaObj.porta;
+      const pLabel = portaObj.label || portaObj.nome || `Porta ${pNum}`;
+      const legado = `Porta ${pNum}`;
+      if (pLabel === legado) return; // sem renomeação, nada a migrar
+      data.items.forEach(item => {
+        if (item.movelId !== id) return;
+        if (!item.posicao) return;
+        // Troca prefixo legado pelo label atual
+        if (item.posicao === legado) {
+          item.posicao = pLabel;
+          precisaSalvar = true;
+        } else if (item.posicao.startsWith(legado + ' > ')) {
+          item.posicao = pLabel + item.posicao.slice(legado.length);
+          precisaSalvar = true;
+        }
+      });
+    });
+    if (precisaSalvar) save();
+  }
+  // ─────────────────────────────────────────────────────────────────────
+  const amb = data.ambientes.find(a=>a.id===mov.ambId);
   mostrarNivel(3);
   document.getElementById('loc-titulo').textContent = (movelEmoji[mov.tipo]||'🗄️')+' '+mov.nome;
   document.getElementById('btn-add-loc').textContent = '+ Novo Item aqui';
@@ -1628,10 +1655,15 @@ function abrirMovel(id) {
         ? portaObj.divisorias
         : [];
 
-      // Conta todos os itens desta porta (em qualquer divisória)
+      // Monta todas as chaves de posição possíveis para esta porta
+      // (suporta formato atual com pLabel E formato legado com "Porta N")
+      const legadoLabel = `Porta ${pNum}`;
       const possDaPorta = divs.length
-        ? divs.map(d => `Porta ${pNum} > ${d}`)
-        : [`Porta ${pNum}`];
+        ? [
+            ...divs.map(d => `${pLabel} > ${d}`),
+            ...divs.map(d => `${legadoLabel} > ${d}`)
+          ]
+        : [pLabel, legadoLabel];
       const itensDaPorta = data.items.filter(i=>i.movelId===id && possDaPorta.includes(i.posicao));
       const totalPorta = itensDaPorta.length;
 
@@ -1653,10 +1685,13 @@ function abrirMovel(id) {
 
       if (divs.length) {
         divs.forEach((div, dIdx) => {
-          const posNome = `Porta ${pNum} > ${div}`;
-          const itensDiv = data.items.filter(i=>i.movelId===id && i.posicao===posNome);
+          // Busca pelo label atual E pelo formato legado "Porta N > div"
+          const posNome = `${pLabel} > ${div}`;
+          const posNomeLegado = `${legadoLabel} > ${div}`;
+          const itensDiv = data.items.filter(i=>i.movelId===id && (i.posicao===posNome || i.posicao===posNomeLegado));
           const nd = itensDiv.length;
           const divId = 'div_'+pIdx+'_'+dIdx+'_'+id;
+          // Sempre salva novos itens com o label atual
           const posEnc = posNome.replace(/'/g,"\\'");
           const emoji = posEmojis[dIdx % posEmojis.length];
           html += `<div class="posicao-row">
@@ -1685,8 +1720,8 @@ function abrirMovel(id) {
         });
       } else {
         // Porta sem divisórias — exibe itens direto
-        const posNome = `Porta ${pNum}`;
-        const itensDir = data.items.filter(i=>i.movelId===id && i.posicao===posNome);
+        const posNome = pLabel;
+        const itensDir = data.items.filter(i=>i.movelId===id && (i.posicao===posNome || i.posicao===legadoLabel));
         const posEnc = posNome.replace(/'/g,"\\'");
         html += `<div style="display:flex;gap:8px;margin:4px 0 8px">
           <button class="btn btn-ghost btn-sm" style="font-size:11px"
