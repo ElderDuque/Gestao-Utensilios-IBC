@@ -363,6 +363,29 @@ tr:hover td{background:rgba(255,255,255,0.02)}
     <div class="splash-dot"></div><div class="splash-dot"></div><div class="splash-dot"></div>
   </div>
 </div>
+<script>
+// RODA IMEDIATAMENTE — não depende de nenhum evento, Firebase ou fonte
+(function(){
+  function killSplash(){
+    var s=document.getElementById('splash');
+    if(!s||s._dead)return;
+    s._dead=true;
+    s.style.transition='opacity 0.6s ease';
+    s.style.opacity='0';
+    s.style.visibility='hidden';
+    s.style.pointerEvents='none';
+    setTimeout(function(){if(s&&s.parentNode)s.parentNode.removeChild(s);},700);
+  }
+  // Dispara em 2s garantidos — independente do resto da página
+  setTimeout(killSplash, 2000);
+  // Dispara quando DOM estiver pronto (pode ser antes dos 2s)
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded',function(){setTimeout(killSplash,500);});
+  } else {
+    setTimeout(killSplash,500);
+  }
+})();
+</script>
 
 <!-- INSTALL BANNER -->
 <div id="installBanner">
