@@ -16,9 +16,9 @@
 <meta http-equiv="Expires" content="0">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Great+Vibes&family=DM+Sans:wght@400;500;600&display=swap&font-display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Great+Vibes&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet"></noscript>
-<script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-<script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 <style>
 :root {
   --dark:#0d0505; --dark2:#1a0808; --dark3:#2a0d0d;
@@ -364,15 +364,12 @@ tr:hover td{background:rgba(255,255,255,0.02)}
   </div>
 </div>
 <script>
-// Remove o splash IMEDIATAMENTE - roda antes de qualquer outra coisa
 (function(){
   function matar(){
     var s=document.getElementById('splash');
     if(s&&s.parentNode){ s.parentNode.removeChild(s); }
   }
-  // Fallback 1: 1.5s após este script rodar (roda no topo do body)
   setTimeout(matar,1500);
-  // Fallback 2: quando DOM estiver pronto
   document.addEventListener('DOMContentLoaded',function(){ setTimeout(matar,300); });
 })();
 </script>
@@ -1005,27 +1002,10 @@ const firebaseConfig = {
   messagingSenderId: "992341147645",
   appId: "1:992341147645:web:ade43eb54c2d8cff202394"
 };
-// ── Firebase init seguro (scripts carregam com defer) ──────────────
-let db, storage, DOC_REF;
-function initFirebase() {
-  if (typeof firebase === 'undefined') return false;
-  if (!firebase.apps.length) {
-    firebase.initializeApp(firebaseConfig);
-  }
-  db = firebase.firestore();
-  storage = firebase.storage();
-  DOC_REF = db.collection('ibc').doc('dados');
-  return true;
-}
-// Tenta inicializar agora; se scripts ainda não carregaram, tenta depois
-if (!initFirebase()) {
-  document.addEventListener('DOMContentLoaded', () => {
-    let t = setInterval(() => {
-      if (initFirebase()) clearInterval(t);
-    }, 200);
-    setTimeout(() => clearInterval(t), 10000);
-  });
-}
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const storage = firebase.storage();
+const DOC_REF = db.collection('ibc').doc('dados');
 
 // ── Utilitários de Storage ─────────────────────────────────────────
 async function uploadFoto(base64, path) {
@@ -1113,7 +1093,6 @@ function save() {
 }
 
 async function saveToFirebase() {
-  if (!DOC_REF) return;
   try {
     // Remove apenas fotos base64 (que ainda não foram enviadas ao Storage)
     // URLs do Firebase Storage são mantidas normalmente
@@ -1143,7 +1122,6 @@ async function saveToFirebase() {
 }
 
 async function loadFromFirebase() {
-  if (!DOC_REF) { setSyncIndicator('offline'); return; }
   try {
     const doc = await DOC_REF.get();
     if (doc.exists) {
@@ -3008,24 +2986,12 @@ if('serviceWorker' in navigator) {
 
 // ═══════════════════════════════════════════
 // SPLASH & INIT
-// splash removido pelo script inline no topo do body
+
 
 window.addEventListener('DOMContentLoaded', ()=>{
   popularSelectAmbientes();
   executarBusca();
-  // Sincroniza com Firebase 1.5s após abrir — não bloqueia
-  // Aguarda scripts do Firebase carregarem (defer) antes de tentar
-  function tentarFirebase(tentativas) {
-    if (typeof firebase !== 'undefined' && firebase.apps) {
-      setTimeout(() => loadFromFirebase(), 0);
-    } else if (tentativas > 0) {
-      setTimeout(() => tentarFirebase(tentativas - 1), 300);
-    } else {
-      console.warn('Firebase não carregou — modo offline');
-      setSyncIndicator('offline');
-    }
-  }
-  setTimeout(() => tentarFirebase(10), 1500);
+  setTimeout(() => loadFromFirebase(), 1500);
 });
 </script>
 </body>
