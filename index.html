@@ -637,12 +637,23 @@ tr:hover td{background:rgba(255,255,255,0.02)}
     </div>
     <div class="form-group">
       <label>Tipo</label>
-      <select id="movelTipo">
+      <select id="movelTipo" onchange="toggleCampoPortas()">
         <option value="armário">Armário</option>
         <option value="geladeira">Geladeira/Freezer</option>
         <option value="estante">Estante/Prateleira</option>
         <option value="gaveta">Gaveteiro</option>
         <option value="caixa">Caixa/Baú</option>
+        <option value="outro">Outro</option>
+      </select>
+    </div>
+    <div class="form-group" id="wrap-numPortas" style="display:none">
+      <label>🚪 Número de Portas</label>
+      <select id="movelNumPortas">
+        <option value="1">1 porta</option>
+        <option value="2" selected>2 portas</option>
+        <option value="3">3 portas</option>
+        <option value="4">4 portas</option>
+        <option value="6">6 portas</option>
         <option value="outro">Outro</option>
       </select>
     </div>
@@ -1511,7 +1522,7 @@ function abrirAmbiente(id) {
       ${fotoHtml}
       <div class="movel-info">
         <div class="movel-nome">${m.nome}</div>
-        <div class="movel-sub">${m.cor||m.tipo||''}</div>
+        <div class="movel-sub">${m.cor||m.tipo||''}${m.numPortas && m.tipo==='armário' ? ' · 🚪'+m.numPortas+' porta(s)' : ''}</div>
         <div class="movel-count">${n} item(ns)</div>
       </div>
     </div>`;
@@ -1740,11 +1751,19 @@ function excluirAmbiente(id) {
 // ═══════════════════════════════════════════
 // MODAL MÓVEL
 // ═══════════════════════════════════════════
+function toggleCampoPortas() {
+  const tipo = document.getElementById('movelTipo').value;
+  const wrap = document.getElementById('wrap-numPortas');
+  if (wrap) wrap.style.display = (tipo === 'armário') ? 'block' : 'none';
+}
+
 function abrirModalMovel(ambId, id) {
   document.getElementById('movelNome').value='';
   document.getElementById('movelTipo').value='armário';
+  document.getElementById('movelNumPortas').value='2';
   document.getElementById('movelCor').value='';
   document.getElementById('movelPosicoes').value='Prateleira superior\nPrateleira do meio\nPrateleira inferior\nTopo';
+  toggleCampoPortas();
   document.getElementById('movelAmbienteId').value=ambId||navAmbienteId||'';
   document.getElementById('editMovelId').value='';
   movelFotosTemp = [];
@@ -1757,9 +1776,11 @@ function abrirModalMovel(ambId, id) {
       document.getElementById('editMovelId').value=m.id;
       document.getElementById('movelNome').value=m.nome;
       document.getElementById('movelTipo').value=m.tipo||'armário';
+      document.getElementById('movelNumPortas').value=m.numPortas||'2';
       document.getElementById('movelCor').value=m.cor||'';
       document.getElementById('movelPosicoes').value=(m.posicoes||[]).join('\n');
       document.getElementById('movelAmbienteId').value=m.ambId;
+      toggleCampoPortas();
       // suporte a fotos[] e foto (legado)
       if (m.fotos && m.fotos.length) movelFotosTemp = [...m.fotos];
       else if (m.foto) movelFotosTemp = [m.foto];
@@ -1778,7 +1799,9 @@ function salvarMovel() {
   // guarda array de fotos e mantém foto (legado) como primeira foto
   const fotos = [...movelFotosTemp];
   const foto = fotos[0] || null;
-  const obj = { nome, tipo:document.getElementById('movelTipo').value,
+  const tipo = document.getElementById('movelTipo').value;
+  const numPortas = tipo === 'armário' ? document.getElementById('movelNumPortas').value : null;
+  const obj = { nome, tipo, numPortas,
     cor:document.getElementById('movelCor').value.trim(), posicoes, ambId, foto, fotos };
   if (id) {
     const i = data.moveis.findIndex(m=>m.id===id);
