@@ -631,13 +631,15 @@ tr:hover td{background:rgba(255,255,255,0.02)}
 <div class="modal-overlay" id="modal-movel">
   <div class="modal">
     <h2 id="tituloModalMovel">🗄️ Novo Móvel / Equipamento</h2>
+
     <div class="form-group">
       <label>Nome *</label>
       <input type="text" id="movelNome" placeholder="Ex: Armário azul, Geladeira, Estante de ferro...">
     </div>
+
     <div class="form-group">
       <label>Tipo</label>
-      <select id="movelTipo">
+      <select id="movelTipo" onchange="onTipoMovelChange()">
         <option value="armário">Armário</option>
         <option value="geladeira">Geladeira/Freezer</option>
         <option value="estante">Estante/Prateleira</option>
@@ -646,14 +648,58 @@ tr:hover td{background:rgba(255,255,255,0.02)}
         <option value="outro">Outro</option>
       </select>
     </div>
+
     <div class="form-group">
       <label>Cor / Característica</label>
       <input type="text" id="movelCor" placeholder="Ex: azul, madeira escura, plástico cinza...">
     </div>
-    <div class="form-group">
-      <label>Posições / Divisórias <small style="color:var(--muted)">(uma por linha)</small></label>
-      <textarea id="movelPosicoes" rows="5" placeholder="Prateleira superior&#10;Prateleira do meio&#10;Prateleira inferior&#10;Gaveta 1&#10;Topo"></textarea>
+
+    <!-- Toggle: tem portas/compartimentos? (aparece para armário e estante) -->
+    <div class="form-group" id="wrap-toggle-portas" style="display:none">
+      <label style="margin-bottom:8px">🚪 Possui portas / compartimentos com tranca?</label>
+      <div style="display:flex;gap:8px">
+        <button type="button" id="btn-temPortas-sim"
+          onclick="setTemPortas(true)"
+          style="flex:1;padding:9px;border-radius:10px;border:2px solid var(--border);
+            background:rgba(255,255,255,0.05);color:#ccc;font-size:13px;font-weight:600;cursor:pointer;transition:.2s">
+          ✅ Sim
+        </button>
+        <button type="button" id="btn-temPortas-nao"
+          onclick="setTemPortas(false)"
+          style="flex:1;padding:9px;border-radius:10px;border:2px solid rgba(201,168,76,0.5);
+            background:rgba(201,168,76,0.12);color:var(--gold);font-size:13px;font-weight:600;cursor:pointer;transition:.2s">
+          ❌ Não
+        </button>
+      </div>
     </div>
+
+    <!-- Seção portas (quando tem portas = sim) -->
+    <div id="wrap-secoes-portas" style="display:none;margin-bottom:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:10px;flex-wrap:wrap">
+        <label style="display:block;font-size:12px;color:var(--gold-light);font-weight:600;letter-spacing:.5px;text-transform:uppercase;margin:0">
+          🚪 Portas / Compartimentos
+        </label>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="font-size:12px;color:var(--muted)">Qtd:</span>
+          <button type="button" onclick="alterarQtdPortas(-1)"
+            style="width:28px;height:28px;border-radius:8px;border:1px solid var(--border);background:rgba(255,255,255,0.07);
+              color:var(--gold);font-size:16px;cursor:pointer;line-height:1">−</button>
+          <span id="movelNumPortasDisplay" style="font-size:14px;font-weight:700;color:#fff;min-width:20px;text-align:center">2</span>
+          <input type="hidden" id="movelNumPortas" value="2">
+          <button type="button" onclick="alterarQtdPortas(1)"
+            style="width:28px;height:28px;border-radius:8px;border:1px solid var(--border);background:rgba(255,255,255,0.07);
+              color:var(--gold);font-size:16px;cursor:pointer;line-height:1">+</button>
+        </div>
+      </div>
+      <div id="portas-lista"></div>
+    </div>
+
+    <!-- Divisórias livres (sem portas ou tipo sem porta) -->
+    <div class="form-group" id="wrap-posicoes-livres">
+      <label>Posições / Divisórias <small style="color:var(--muted)">(uma por linha)</small></label>
+      <textarea id="movelPosicoes" rows="4" placeholder="Prateleira superior&#10;Prateleira do meio&#10;Prateleira inferior&#10;Gaveta 1&#10;Topo"></textarea>
+    </div>
+
     <div class="form-group">
       <label>📸 Fotos do Móvel</label>
       <div id="movelFotosGrid" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px"></div>
@@ -666,8 +712,10 @@ tr:hover td{background:rgba(255,255,255,0.02)}
       <input type="file" id="movelFotoCam" accept="image/*" capture="environment" multiple onchange="adicionarFotosMovel(this)" style="display:none">
       <input type="file" id="movelFotoGal" accept="image/*" multiple onchange="adicionarFotosMovel(this)" style="display:none">
     </div>
+
     <input type="hidden" id="editMovelId">
     <input type="hidden" id="movelAmbienteId">
+    <input type="hidden" id="movelTemPortas" value="false">
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('movel')">Cancelar</button>
       <button class="btn btn-gold" onclick="salvarMovel()">💾 Salvar</button>
@@ -1099,6 +1147,10 @@ async function loadFromFirebase() {
         localStorage.setItem('ibcdata2', JSON.stringify(data));
         popularSelectAmbientes();
         executarBusca();
+        // Re-renderiza a tela atual para mostrar fotos vindas da nuvem
+        if (!navAmbienteId && !navMovelId) renderLocalidades();
+        else if (navAmbienteId && !navMovelId) abrirAmbiente(navAmbienteId);
+        else if (navMovelId) abrirMovel(navMovelId);
         setSyncIndicator('ok');
 
         // Envia fotos base64 pendentes para o Storage em background
@@ -1511,7 +1563,7 @@ function abrirAmbiente(id) {
       ${fotoHtml}
       <div class="movel-info">
         <div class="movel-nome">${m.nome}</div>
-        <div class="movel-sub">${m.cor||m.tipo||''}</div>
+        <div class="movel-sub">${m.cor||m.tipo||''}${m.temPortas && m.numPortas ? ' · 🚪'+m.numPortas+' porta'+(m.numPortas>1?'s':'') : (m.numPortas && m.tipo==='armário' ? ' · 🚪'+m.numPortas+' porta'+(m.numPortas>1?'s':'') : '')}</div>
         <div class="movel-count">${n} item(ns)</div>
       </div>
     </div>`;
@@ -1521,6 +1573,33 @@ function abrirAmbiente(id) {
 function abrirMovel(id) {
   navMovelId = id;
   const mov = data.moveis.find(m=>m.id===id);
+  const amb = data.ambientes.find(a=>a.id===mov.ambId);
+
+  // ── Migração automática: corrige itens salvos com formato legado ──────
+  // Ex: "Porta 3 > Prateleira superior" → "Porta dos Cálices > Prateleira superior"
+  if (mov.temPortas && mov.portasConfig && mov.portasConfig.length) {
+    let precisaSalvar = false;
+    mov.portasConfig.forEach(portaObj => {
+      const pNum = portaObj.porta;
+      const pLabel = portaObj.label || portaObj.nome || `Porta ${pNum}`;
+      const legado = `Porta ${pNum}`;
+      if (pLabel === legado) return; // sem renomeação, nada a migrar
+      data.items.forEach(item => {
+        if (item.movelId !== id) return;
+        if (!item.posicao) return;
+        // Troca prefixo legado pelo label atual
+        if (item.posicao === legado) {
+          item.posicao = pLabel;
+          precisaSalvar = true;
+        } else if (item.posicao.startsWith(legado + ' > ')) {
+          item.posicao = pLabel + item.posicao.slice(legado.length);
+          precisaSalvar = true;
+        }
+      });
+    });
+    if (precisaSalvar) save();
+  }
+  // ─────────────────────────────────────────────────────────────────────
   const amb = data.ambientes.find(a=>a.id===mov.ambId);
   mostrarNivel(3);
   document.getElementById('loc-titulo').textContent = (movelEmoji[mov.tipo]||'🗄️')+' '+mov.nome;
@@ -1568,39 +1647,134 @@ function abrirMovel(id) {
     html += '<div class="empty"><div class="empty-icon">📦</div><p>Nenhuma posição ou item cadastrado aqui.</p></div>';
   }
 
-  // Por posição — botões colapsáveis
+  // Por posição — agrupado por porta se tiver portasConfig
   const posEmojis = ['🔝','📗','📘','📙','📕','🗂️','📂','🗃️','📦','🏷️'];
-  posicoes.forEach((pos, idx) => {
-    const itensPos = data.items.filter(i=>i.movelId===id && i.posicao===pos);
-    const n = itensPos.length;
-    const posId = 'pos_' + idx + '_' + id;
-    const emoji = posEmojis[idx % posEmojis.length];
-    // encoda pos para uso seguro no onclick inline
-    const posEnc = pos.replace(/'/g,"\\'");
-    html += `<div class="posicao-row">
-      <div class="posicao-btn-wrap">
-        <button class="posicao-btn" onclick="togglePosicao('${posId}',this)">
-          <div class="posicao-btn-esq">
-            <span class="posicao-btn-icone">${emoji}</span>
-            <span class="posicao-btn-nome">${pos}</span>
-          </div>
-          <div class="posicao-btn-dir">
-            <span class="posicao-badge ${n===0?'vazio':''}">${n===0?'Vazio':n+' item'+(n>1?'s':'')}</span>
-            <span class="posicao-chevron">▾</span>
-          </div>
-        </button>
-        <button class="posicao-add-btn" title="Adicionar item nesta posição"
-          onclick="event.stopPropagation();abrirModalItem('${mov.ambId}','${id}');setTimeout(()=>{document.getElementById('itemPosicao').value='${posEnc}';},120)">
-          ＋
-        </button>
-      </div>
-      <div class="posicao-conteudo" id="${posId}">
-        <div class="posicao-itens">
-          ${n ? itensPos.map(it => itemTagCard(it)).join('') : '<span class="posicao-vazia">Nenhum item nesta posição ainda.</span>'}
+
+  if (mov.temPortas && mov.portasConfig && mov.portasConfig.length) {
+    // Renderiza agrupado por porta (qualquer tipo)
+    mov.portasConfig.forEach((portaObj, pIdx) => {
+      const pLabel = portaObj.label || portaObj.nome || `Porta ${portaObj.porta}`;
+      const pNum = portaObj.porta;
+      const divs = portaObj.divisorias && portaObj.divisorias.length
+        ? portaObj.divisorias
+        : [];
+
+      // Monta todas as chaves de posição possíveis para esta porta
+      // (suporta formato atual com pLabel E formato legado com "Porta N")
+      const legadoLabel = `Porta ${pNum}`;
+      const possDaPorta = divs.length
+        ? [
+            ...divs.map(d => `${pLabel} > ${d}`),
+            ...divs.map(d => `${legadoLabel} > ${d}`)
+          ]
+        : [pLabel, legadoLabel];
+      const itensDaPorta = data.items.filter(i=>i.movelId===id && possDaPorta.includes(i.posicao));
+      const totalPorta = itensDaPorta.length;
+
+      // Cabeçalho da porta — colapsável
+      const portaBlockId = 'portablock_' + pIdx + '_' + id;
+      html += `<div style="margin-bottom:10px">
+        <div style="display:flex;align-items:center;gap:6px;padding:8px 12px;
+          background:linear-gradient(135deg,rgba(139,32,32,0.35),rgba(50,20,20,0.5));
+          border:1px solid rgba(201,168,76,0.35);border-radius:12px;cursor:pointer;margin-bottom:6px"
+          onclick="togglePosicao('${portaBlockId}',this)">
+          <span style="font-size:16px">🚪</span>
+          <span style="font-weight:700;color:var(--gold-light);flex:1">${pLabel}</span>
+          <span style="font-size:11px;color:${totalPorta?'var(--gold)':'var(--muted)'};margin-right:6px">
+            ${totalPorta ? totalPorta+' item'+(totalPorta>1?'s':'') : 'Vazio'}
+          </span>
+          <span class="posicao-chevron">▾</span>
         </div>
-      </div>
-    </div>`;
-  });
+        <div class="posicao-conteudo" id="${portaBlockId}" style="padding-left:10px">`;
+
+      if (divs.length) {
+        divs.forEach((div, dIdx) => {
+          // Busca pelo label atual E pelo formato legado "Porta N > div"
+          const posNome = `${pLabel} > ${div}`;
+          const posNomeLegado = `${legadoLabel} > ${div}`;
+          const itensDiv = data.items.filter(i=>i.movelId===id && (i.posicao===posNome || i.posicao===posNomeLegado));
+          const nd = itensDiv.length;
+          const divId = 'div_'+pIdx+'_'+dIdx+'_'+id;
+          // Sempre salva novos itens com o label atual
+          const posEnc = posNome.replace(/'/g,"\\'");
+          const emoji = posEmojis[dIdx % posEmojis.length];
+          html += `<div class="posicao-row">
+            <div class="posicao-btn-wrap">
+              <button class="posicao-btn" onclick="togglePosicao('${divId}',this)">
+                <div class="posicao-btn-esq">
+                  <span class="posicao-btn-icone">${emoji}</span>
+                  <span class="posicao-btn-nome">${div}</span>
+                </div>
+                <div class="posicao-btn-dir">
+                  <span class="posicao-badge ${nd===0?'vazio':''}">${nd===0?'Vazio':nd+' item'+(nd>1?'s':'')}</span>
+                  <span class="posicao-chevron">▾</span>
+                </div>
+              </button>
+              <button class="posicao-add-btn" title="Adicionar item aqui"
+                onclick="event.stopPropagation();abrirModalItem('${mov.ambId}','${id}');setTimeout(()=>{document.getElementById('itemPosicao').value='${posEnc}';},120)">
+                ＋
+              </button>
+            </div>
+            <div class="posicao-conteudo" id="${divId}">
+              <div class="posicao-itens">
+                ${nd ? itensDiv.map(it=>itemTagCard(it)).join('') : '<span class="posicao-vazia">Nenhum item nesta posição ainda.</span>'}
+              </div>
+            </div>
+          </div>`;
+        });
+      } else {
+        // Porta sem divisórias — exibe itens direto
+        const posNome = pLabel;
+        const itensDir = data.items.filter(i=>i.movelId===id && (i.posicao===posNome || i.posicao===legadoLabel));
+        const posEnc = posNome.replace(/'/g,"\\'");
+        html += `<div style="display:flex;gap:8px;margin:4px 0 8px">
+          <button class="btn btn-ghost btn-sm" style="font-size:11px"
+            onclick="abrirModalItem('${mov.ambId}','${id}');setTimeout(()=>{document.getElementById('itemPosicao').value='${posEnc}';},120)">
+            ＋ Adicionar item
+          </button>
+        </div>`;
+        if (itensDir.length) {
+          html += `<div class="posicao-itens">${itensDir.map(it=>itemTagCard(it)).join('')}</div>`;
+        } else {
+          html += `<span class="posicao-vazia" style="font-size:12px;color:var(--muted)">Nenhum item nesta porta ainda.</span>`;
+        }
+      }
+
+      html += `</div></div>`; // fecha posicao-conteudo e porta block
+    });
+  } else {
+    // Renderização padrão (não-armário ou armário sem portasConfig)
+    posicoes.forEach((pos, idx) => {
+      const itensPos = data.items.filter(i=>i.movelId===id && i.posicao===pos);
+      const n = itensPos.length;
+      const posId = 'pos_' + idx + '_' + id;
+      const emoji = posEmojis[idx % posEmojis.length];
+      const posEnc = pos.replace(/'/g,"\\'");
+      html += `<div class="posicao-row">
+        <div class="posicao-btn-wrap">
+          <button class="posicao-btn" onclick="togglePosicao('${posId}',this)">
+            <div class="posicao-btn-esq">
+              <span class="posicao-btn-icone">${emoji}</span>
+              <span class="posicao-btn-nome">${pos}</span>
+            </div>
+            <div class="posicao-btn-dir">
+              <span class="posicao-badge ${n===0?'vazio':''}">${n===0?'Vazio':n+' item'+(n>1?'s':'')}</span>
+              <span class="posicao-chevron">▾</span>
+            </div>
+          </button>
+          <button class="posicao-add-btn" title="Adicionar item nesta posição"
+            onclick="event.stopPropagation();abrirModalItem('${mov.ambId}','${id}');setTimeout(()=>{document.getElementById('itemPosicao').value='${posEnc}';},120)">
+            ＋
+          </button>
+        </div>
+        <div class="posicao-conteudo" id="${posId}">
+          <div class="posicao-itens">
+            ${n ? itensPos.map(it => itemTagCard(it)).join('') : '<span class="posicao-vazia">Nenhum item nesta posição ainda.</span>'}
+          </div>
+        </div>
+      </div>`;
+    });
+  }
 
   // Itens sem posição definida
   if (itensSemPos.length) {
@@ -1738,15 +1912,119 @@ function excluirAmbiente(id) {
 }
 
 // ═══════════════════════════════════════════
-// MODAL MÓVEL
+// MODAL MÓVEL — lógica de portas/compartimentos
 // ═══════════════════════════════════════════
+
+function tipoSuportaPortas(tipo) {
+  return ['armário','estante','caixa','outro'].includes(tipo);
+}
+
+function onTipoMovelChange() {
+  const tipo = document.getElementById('movelTipo').value;
+  const suporta = tipoSuportaPortas(tipo);
+  document.getElementById('wrap-toggle-portas').style.display = suporta ? 'block' : 'none';
+  if (!suporta) setTemPortas(false, true);
+}
+
+function setTemPortas(sim, silencioso) {
+  document.getElementById('movelTemPortas').value = sim ? 'true' : 'false';
+  const btnSim = document.getElementById('btn-temPortas-sim');
+  const btnNao = document.getElementById('btn-temPortas-nao');
+  if (btnSim) {
+    btnSim.style.border = sim ? '2px solid var(--gold)' : '2px solid var(--border)';
+    btnSim.style.background = sim ? 'rgba(201,168,76,0.18)' : 'rgba(255,255,255,0.05)';
+    btnSim.style.color = sim ? 'var(--gold)' : '#ccc';
+    btnNao.style.border = !sim ? '2px solid rgba(201,168,76,0.5)' : '2px solid var(--border)';
+    btnNao.style.background = !sim ? 'rgba(201,168,76,0.12)' : 'rgba(255,255,255,0.05)';
+    btnNao.style.color = !sim ? 'var(--gold)' : '#ccc';
+  }
+  document.getElementById('wrap-secoes-portas').style.display = sim ? 'block' : 'none';
+  document.getElementById('wrap-posicoes-livres').style.display = sim ? 'none' : 'block';
+  if (sim && !silencioso) gerarSecoesPortas();
+}
+
+function alterarQtdPortas(delta) {
+  const inp = document.getElementById('movelNumPortas');
+  const disp = document.getElementById('movelNumPortasDisplay');
+  let n = parseInt(inp.value) + delta;
+  if (n < 1) n = 1;
+  if (n > 20) n = 20;
+  inp.value = n;
+  disp.textContent = n;
+  gerarSecoesPortas();
+}
+
+function gerarSecoesPortas(portasData) {
+  const n = parseInt(document.getElementById('movelNumPortas').value) || 2;
+  const lista = document.getElementById('portas-lista');
+  const atual = [];
+  lista.querySelectorAll('.porta-bloco').forEach(bloco => {
+    atual.push({
+      nome: bloco.querySelector('.porta-nome-input')?.value || '',
+      divs: bloco.querySelector('.porta-divs-textarea')?.value || ''
+    });
+  });
+  let html = '';
+  for (let i = 0; i < n; i++) {
+    let nome = '', divs = 'Prateleira superior\nPrateleira do meio\nPrateleira inferior';
+    if (portasData && portasData[i]) {
+      nome = (portasData[i].nome) || (portasData[i].label !== `Porta ${portasData[i].porta}` ? portasData[i].label : '');
+      divs = (portasData[i].divisorias||[]).join('\n');
+    } else if (atual[i]) {
+      nome = atual[i].nome;
+      divs = atual[i].divs !== '' ? atual[i].divs : divs;
+    }
+    const nomeEsc = nome.replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const divsEsc = divs.replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    html += `<div class="porta-bloco" data-idx="${i}"
+      style="margin-bottom:10px;padding:12px;background:rgba(139,32,32,0.15);
+        border:1px solid rgba(201,168,76,0.2);border-radius:12px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span style="font-size:15px">🚪</span>
+        <span style="font-size:11px;color:var(--gold);font-weight:700;min-width:52px">PORTA ${i+1}</span>
+        <input class="porta-nome-input" type="text" value="${nomeEsc}"
+          placeholder="Nome livre (ex: Porta dos Cálices, Compartimento A...)"
+          style="flex:1;padding:6px 10px;background:rgba(255,255,255,0.08);border:1px solid var(--border);
+            border-radius:8px;color:#fff;font-size:12px;outline:none">
+      </div>
+      <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">
+        Divisórias internas (uma por linha, ou deixe vazio):
+      </label>
+      <textarea class="porta-divs-textarea" rows="3"
+        style="width:100%;padding:7px 10px;background:rgba(255,255,255,0.06);border:1px solid var(--border);
+          border-radius:8px;color:#fff;font-size:12px;resize:vertical;outline:none"
+        placeholder="Prateleira superior&#10;Prateleira do meio&#10;Prateleira inferior">${divsEsc}</textarea>
+    </div>`;
+  }
+  lista.innerHTML = html;
+}
+
+function lerPortasDoForm() {
+  const lista = document.getElementById('portas-lista');
+  const result = [];
+  lista.querySelectorAll('.porta-bloco').forEach((bloco, i) => {
+    const nome = bloco.querySelector('.porta-nome-input')?.value.trim() || '';
+    const divsTxt = bloco.querySelector('.porta-divs-textarea')?.value || '';
+    const divs = divsTxt.split('\n').map(s=>s.trim()).filter(Boolean);
+    const label = nome || `Porta ${i+1}`;
+    result.push({ porta: i+1, nome, label, divisorias: divs });
+  });
+  return result;
+}
+
+// Compatibilidade legada
+function toggleCampoPortas() { onTipoMovelChange(); }
+
 function abrirModalMovel(ambId, id) {
   document.getElementById('movelNome').value='';
   document.getElementById('movelTipo').value='armário';
+  document.getElementById('movelNumPortas').value='2';
+  document.getElementById('movelNumPortasDisplay').textContent='2';
   document.getElementById('movelCor').value='';
   document.getElementById('movelPosicoes').value='Prateleira superior\nPrateleira do meio\nPrateleira inferior\nTopo';
   document.getElementById('movelAmbienteId').value=ambId||navAmbienteId||'';
   document.getElementById('editMovelId').value='';
+  document.getElementById('movelTemPortas').value='false';
   movelFotosTemp = [];
   renderMovelFotosGrid();
   document.getElementById('tituloModalMovel').textContent = '🗄️ Novo Móvel';
@@ -1760,29 +2038,56 @@ function abrirModalMovel(ambId, id) {
       document.getElementById('movelCor').value=m.cor||'';
       document.getElementById('movelPosicoes').value=(m.posicoes||[]).join('\n');
       document.getElementById('movelAmbienteId').value=m.ambId;
-      // suporte a fotos[] e foto (legado)
-      if (m.fotos && m.fotos.length) movelFotosTemp = [...m.fotos];
-      else if (m.foto) movelFotosTemp = [m.foto];
+      if (m.fotos && m.fotos.length) movelFotosTemp=[...m.fotos];
+      else if (m.foto) movelFotosTemp=[m.foto];
       renderMovelFotosGrid();
+      const temPortas = !!(m.temPortas || m.portasConfig);
+      const nPortas = m.numPortas||(m.portasConfig&&m.portasConfig.length)||2;
+      document.getElementById('movelNumPortas').value = nPortas;
+      document.getElementById('movelNumPortasDisplay').textContent = nPortas;
+      onTipoMovelChange();
+      setTemPortas(temPortas, true);
+      if (temPortas && m.portasConfig) gerarSecoesPortas(m.portasConfig);
+      else if (temPortas) gerarSecoesPortas();
+      openModal('movel');
+      return;
     }
   }
+  onTipoMovelChange();
+  setTemPortas(true, true);
+  gerarSecoesPortas();
   openModal('movel');
 }
 
 function salvarMovel() {
   const nome = document.getElementById('movelNome').value.trim();
   if (!nome) { alert('Informe o nome!'); return; }
-  const posicoes = document.getElementById('movelPosicoes').value.split('\n').map(s=>s.trim()).filter(Boolean);
   const ambId = document.getElementById('movelAmbienteId').value;
   const id = document.getElementById('editMovelId').value;
-  // guarda array de fotos e mantém foto (legado) como primeira foto
   const fotos = [...movelFotosTemp];
-  const foto = fotos[0] || null;
-  const obj = { nome, tipo:document.getElementById('movelTipo').value,
-    cor:document.getElementById('movelCor').value.trim(), posicoes, ambId, foto, fotos };
+  const foto = fotos[0]||null;
+  const tipo = document.getElementById('movelTipo').value;
+  const temPortas = document.getElementById('movelTemPortas').value === 'true';
+  const numPortas = temPortas ? parseInt(document.getElementById('movelNumPortas').value)||2 : null;
+  let posicoes = [];
+  let portasConfig = null;
+  if (temPortas) {
+    portasConfig = lerPortasDoForm();
+    portasConfig.forEach(p => {
+      if (p.divisorias.length) {
+        p.divisorias.forEach(d => posicoes.push(`${p.label} > ${d}`));
+      } else {
+        posicoes.push(p.label);
+      }
+    });
+  } else {
+    posicoes = document.getElementById('movelPosicoes').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  }
+  const obj = { nome, tipo, temPortas, numPortas, portasConfig,
+    cor: document.getElementById('movelCor').value.trim(), posicoes, ambId, foto, fotos };
   if (id) {
-    const i = data.moveis.findIndex(m=>m.id===id);
-    data.moveis[i] = {...data.moveis[i],...obj};
+    const idx = data.moveis.findIndex(m=>m.id===id);
+    data.moveis[idx] = {...data.moveis[idx],...obj};
   } else {
     obj.id='M'+Date.now(); data.moveis.push(obj);
   }
@@ -1790,7 +2095,6 @@ function salvarMovel() {
   if (navAmbienteId) abrirAmbiente(navAmbienteId);
   else renderLocalidades();
 }
-
 function excluirMovel(id) {
   if (!confirm('Excluir este móvel? Os itens serão desvinculados.')) return;
   data.moveis = data.moveis.filter(m=>m.id!==id);
