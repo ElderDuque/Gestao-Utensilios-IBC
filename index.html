@@ -1250,20 +1250,39 @@ async function forceSyncFromFirebase() {
   if (btn) { btn.style.animation = 'spin 1s linear infinite'; btn.style.display = 'inline-block'; }
   setSyncIndicator('syncing');
   try {
+    // Garante que o Firebase está inicializado antes de qualquer coisa
+    if (!DOC_REF) {
+      const ok = initFirebase();
+      if (!ok) {
+        // Tenta aguardar até 5s pelo Firebase carregar
+        await new Promise((resolve, reject) => {
+          let tentativas = 0;
+          const t = setInterval(() => {
+            tentativas++;
+            if (initFirebase()) { clearInterval(t); resolve(); }
+            else if (tentativas >= 25) { clearInterval(t); reject(new Error('Firebase não carregou')); }
+          }, 200);
+        });
+      }
+    }
     // Limpa localStorage para forçar leitura completa do Firebase
     localStorage.removeItem('ibcdata2');
+    // Reinicia data para estrutura vazia antes de carregar
+    data = { ambientes:[], tags:[], moveis:[], items:[], emprestimos:[], ocorrencias:[] };
     await loadFromFirebase();
     // Re-renderiza tudo
     popularSelectAmbientes();
     executarBusca();
     renderItems();
+    renderLocalidades && renderLocalidades();
     setSyncIndicator('ok');
     // Feedback visual
     const txt = document.getElementById('sync-txt');
     if (txt) { txt.textContent = '✅ Atualizado!'; setTimeout(() => setSyncIndicator('ok'), 2000); }
   } catch(e) {
+    console.error('forceSyncFromFirebase error:', e);
     setSyncIndicator('error');
-    alert('Erro ao atualizar. Verifique sua conexão e tente novamente.');
+    alert('Erro ao atualizar: ' + e.message + '\n\nVerifique sua conexão e tente novamente.');
   } finally {
     if (btn) btn.style.animation = '';
   }
@@ -3040,11 +3059,25 @@ if('serviceWorker' in navigator) {
 window.addEventListener('DOMContentLoaded', ()=>{
   popularSelectAmbientes();
   executarBusca();
-  // Sincroniza com Firebase 1.5s após abrir — não bloqueia
-  // Aguarda scripts do Firebase carregarem (defer) antes de tentar
+  // Sincroniza com Firebase — aguarda scripts carregarem (defer)
   function tentarFirebase(tentativas) {
     if (typeof firebase !== 'undefined' && firebase.apps) {
-      setTimeout(() => loadFromFirebase(), 0);
+      // Garante que DOC_REF está inicializado
+      if (!DOC_REF) initFirebase();
+      if (DOC_REF) {
+        setSyncIndicator('syncing');
+        loadFromFirebase().then(() => {
+          popularSelectAmbientes();
+          executarBusca();
+          renderItems && renderItems();
+        }).catch(e => {
+          console.warn('Erro ao carregar Firebase:', e);
+          setSyncIndicator('offline');
+        });
+      } else {
+        console.warn('Firebase não inicializou — modo offline');
+        setSyncIndicator('offline');
+      }
     } else if (tentativas > 0) {
       setTimeout(() => tentarFirebase(tentativas - 1), 300);
     } else {
@@ -3052,7 +3085,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
       setSyncIndicator('offline');
     }
   }
-  setTimeout(() => tentarFirebase(10), 1500);
+  setTimeout(() => tentarFirebase(20), 800);
 });
 </script>
 </body>
