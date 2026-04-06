@@ -16,9 +16,9 @@
 <meta http-equiv="Expires" content="0">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Great+Vibes&family=DM+Sans:wght@400;500;600&display=swap&font-display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Great+Vibes&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet"></noscript>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 <style>
 :root {
   --dark:#0d0505; --dark2:#1a0808; --dark3:#2a0d0d;
@@ -365,12 +365,9 @@ tr:hover td{background:rgba(255,255,255,0.02)}
 </div>
 <script>
 (function(){
-  function matar(){
-    var s=document.getElementById('splash');
-    if(s&&s.parentNode){ s.parentNode.removeChild(s); }
-  }
+  function matar(){var s=document.getElementById('splash');if(s&&s.parentNode)s.parentNode.removeChild(s);}
   setTimeout(matar,1500);
-  document.addEventListener('DOMContentLoaded',function(){ setTimeout(matar,300); });
+  document.addEventListener('DOMContentLoaded',function(){setTimeout(matar,300);});
 })();
 </script>
 
@@ -1002,10 +999,27 @@ const firebaseConfig = {
   messagingSenderId: "992341147645",
   appId: "1:992341147645:web:ade43eb54c2d8cff202394"
 };
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
-const storage = firebase.storage();
-const DOC_REF = db.collection('ibc').doc('dados');
+// ── Firebase init seguro (scripts carregam com defer) ──────────────
+let db, storage, DOC_REF;
+function initFirebase() {
+  if (typeof firebase === 'undefined') return false;
+  if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+  }
+  db = firebase.firestore();
+  storage = firebase.storage();
+  DOC_REF = db.collection('ibc').doc('dados');
+  return true;
+}
+// Tenta inicializar agora; se scripts ainda não carregaram, tenta depois
+if (!initFirebase()) {
+  document.addEventListener('DOMContentLoaded', () => {
+    let t = setInterval(() => {
+      if (initFirebase()) clearInterval(t);
+    }, 200);
+    setTimeout(() => clearInterval(t), 10000);
+  });
+}
 
 // ── Utilitários de Storage ─────────────────────────────────────────
 async function uploadFoto(base64, path) {
@@ -1070,7 +1084,9 @@ async function syncFotosParaStorage() {
 // ═══════════════════════════════════════════
 // DADOS — carrega do localStorage imediatamente
 // ═══════════════════════════════════════════
-let data = JSON.parse(localStorage.getItem('ibcdata2') || '{}');
+let data;
+try { data = JSON.parse(localStorage.getItem('ibcdata2') || '{}'); }
+catch(e) { data = {}; localStorage.removeItem('ibcdata2'); }
 if (!data.ambientes)   data.ambientes   = [];
 if (!data.tags)        data.tags        = [];
 if (!data.moveis)      data.moveis      = [];
@@ -1093,6 +1109,7 @@ function save() {
 }
 
 async function saveToFirebase() {
+  if (!DOC_REF) return;
   try {
     // Remove apenas fotos base64 (que ainda não foram enviadas ao Storage)
     // URLs do Firebase Storage são mantidas normalmente
@@ -1122,6 +1139,7 @@ async function saveToFirebase() {
 }
 
 async function loadFromFirebase() {
+  if (!DOC_REF) { setSyncIndicator('offline'); return; }
   try {
     const doc = await DOC_REF.get();
     if (doc.exists) {
@@ -1229,17 +1247,20 @@ let navMovelId = null;
 // TABS
 // ═══════════════════════════════════════════
 function showTab(name, btn) {
-  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
-  document.getElementById('tab-'+name).classList.add('active');
-  if (btn) btn.classList.add('active');
-  if (name === 'localidades') renderLocalidades();
-  if (name === 'itens') { popularSelectAmbientes(); renderItems(); }
-  if (name === 'emprestimos') { popularSelectItems(); renderEmprestimos(); }
-  if (name === 'ocorrencias') { popularSelectItems(); renderOcorrencias(); }
-  if (name === 'relatorios') renderRelatorios();
-  if (name === 'tags') renderTags();
-  if (name === 'busca') executarBusca();
+  try {
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+    var el = document.getElementById('tab-'+name);
+    if (el) el.classList.add('active');
+    if (btn) btn.classList.add('active');
+    if (name === 'localidades') renderLocalidades();
+    if (name === 'itens') { popularSelectAmbientes(); renderItems(); }
+    if (name === 'emprestimos') { popularSelectItems(); renderEmprestimos(); }
+    if (name === 'ocorrencias') { popularSelectItems(); renderOcorrencias(); }
+    if (name === 'relatorios') renderRelatorios();
+    if (name === 'tags') renderTags();
+    if (name === 'busca') executarBusca();
+  } catch(e) { console.error('showTab error:', e); }
 }
 
 // ═══════════════════════════════════════════
@@ -2984,14 +3005,12 @@ if('serviceWorker' in navigator) {
   });
 }
 
-// ═══════════════════════════════════════════
-// SPLASH & INIT
-
+// splash removido pelo script inline no topo
 
 window.addEventListener('DOMContentLoaded', ()=>{
-  popularSelectAmbientes();
-  executarBusca();
-  setTimeout(() => loadFromFirebase(), 1500);
+  try { popularSelectAmbientes(); } catch(e) { console.warn(e); }
+  try { executarBusca(); } catch(e) { console.warn(e); }
+  setTimeout(() => { try { loadFromFirebase(); } catch(e) {} }, 1500);
 });
 </script>
 </body>
