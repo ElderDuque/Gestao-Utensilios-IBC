@@ -2980,16 +2980,19 @@ if('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════
 // SPLASH & INIT
 // ═══════════════════════════════════════════
-window.addEventListener('load',()=>{
-  // Splash some SEMPRE após 2 segundos — sem depender de nada
-  setTimeout(()=>{
-    const splash = document.getElementById('splash');
-    if (splash) {
-      splash.classList.add('hide');
-      setTimeout(()=>{ if(splash.parentNode) splash.remove(); },900);
-    }
-  }, 2000);
+function esconderSplash() {
+  const splash = document.getElementById('splash');
+  if (splash && !splash.classList.contains('hide')) {
+    splash.classList.add('hide');
+    setTimeout(()=>{ if(splash && splash.parentNode) splash.parentNode.removeChild(splash); }, 900);
+  }
+}
+// Usa DOMContentLoaded — não espera Firebase nem fontes externas
+document.addEventListener('DOMContentLoaded', ()=>{
+  setTimeout(esconderSplash, 2000);
 });
+// Fallback: força em 5s de qualquer forma
+setTimeout(esconderSplash, 5000);
 
 window.addEventListener('DOMContentLoaded', ()=>{
   popularSelectAmbientes();
