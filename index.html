@@ -1057,9 +1057,31 @@ async function syncFotosParaStorage() {
 }
 
 // ═══════════════════════════════════════════
-// DADOS — carrega do localStorage imediatamente
+// DADOS — carrega sem fotos base64 para não travar na inicialização
 // ═══════════════════════════════════════════
-let data = JSON.parse(localStorage.getItem('ibcdata2') || '{}');
+function carregarDataLocal() {
+  try {
+    const raw = localStorage.getItem('ibcdata2') || '{}';
+    const parsed = JSON.parse(raw);
+    // Remove base64 gigantes — fotos virão do Firebase Storage
+    if (parsed.ambientes) parsed.ambientes = parsed.ambientes.map(a => {
+      if (a.foto && a.foto.startsWith('data:')) a.foto = null; return a;
+    });
+    if (parsed.moveis) parsed.moveis = parsed.moveis.map(m => {
+      if (m.foto && m.foto.startsWith('data:')) m.foto = null;
+      if (m.fotos) m.fotos = m.fotos.map(f => (f && f.startsWith('data:')) ? null : f).filter(Boolean);
+      return m;
+    });
+    if (parsed.items) parsed.items = parsed.items.map(i => {
+      if (i.foto && i.foto.startsWith('data:')) i.foto = null; return i;
+    });
+    return parsed;
+  } catch(e) {
+    console.warn('Erro ao carregar dados locais:', e);
+    return {};
+  }
+}
+let data = carregarDataLocal();
 if (!data.ambientes)   data.ambientes   = [];
 if (!data.tags)        data.tags        = [];
 if (!data.moveis)      data.moveis      = [];
@@ -1145,6 +1167,13 @@ async function loadFromFirebase() {
         data.items.forEach(i    => { if (fotosPorItem[i.id])   i.foto = fotosPorItem[i.id]; });
 
         localStorage.setItem('ibcdata2', JSON.stringify(data));
+        // Limpa base64 antigas do localStorage para não travar futuras cargas
+        const dataLimpa = JSON.parse(JSON.stringify(data));
+        let teveLimpa = false;
+        dataLimpa.ambientes.forEach(a => { if(a.foto&&a.foto.startsWith('data:')){ a.foto=null; teveLimpa=true; }});
+        dataLimpa.moveis.forEach(m => { if(m.foto&&m.foto.startsWith('data:')){ m.foto=null; teveLimpa=true; } if(m.fotos) m.fotos=m.fotos.map(f=>(f&&f.startsWith('data:'))?(teveLimpa=true,null):f).filter(Boolean); });
+        dataLimpa.items.forEach(i => { if(i.foto&&i.foto.startsWith('data:')){ i.foto=null; teveLimpa=true; }});
+        if(teveLimpa) localStorage.setItem('ibcdata2', JSON.stringify(dataLimpa));
         popularSelectAmbientes();
         executarBusca();
         // Re-renderiza a tela atual para mostrar fotos vindas da nuvem
