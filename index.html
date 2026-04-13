@@ -990,6 +990,28 @@ async function deleteFoto(url) {
 const _uploadQueue = [];
 let _uploading = false;
 
+// Redimensiona imagem para max 1024px usando canvas e retorna Blob (muito mais rápido que base64)
+function redimensionarParaBlob(file, maxPx = 1024, qualidade = 0.82) {
+  return new Promise(resolve => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let { width, height } = img;
+      if (width > maxPx || height > maxPx) {
+        if (width >= height) { height = Math.round(height * maxPx / width); width = maxPx; }
+        else { width = Math.round(width * maxPx / height); height = maxPx; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width; canvas.height = height;
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+      canvas.toBlob(blob => resolve(blob), 'image/jpeg', qualidade);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+    img.src = url;
+  });
+}
+
 async function _processQueue() {
   if (_uploading || !_uploadQueue.length) return;
   _uploading = true;
@@ -997,8 +1019,11 @@ async function _processQueue() {
   while (_uploadQueue.length) {
     const { file, storagePath, onDone } = _uploadQueue.shift();
     try {
-      const base64 = await comprimirImagem(file);
-      const url = await uploadFoto(base64, storagePath);
+      // Redimensiona para Blob (sem passar por base64 — muito mais rápido)
+      const blob = await redimensionarParaBlob(file);
+      const ref = storage.ref(storagePath);
+      await ref.put(blob, { contentType: 'image/jpeg' });
+      const url = await ref.getDownloadURL();
       if (url && onDone) onDone(url);
     } catch(e) {
       console.warn('Background upload error:', e);
@@ -1015,7 +1040,7 @@ function uploadFotoBackground(file, storagePath, onDone) {
   _processQueue();
 }
 
-// Mantida para compatibilidade (ex: salvarItem ainda pode chamar)
+// Mantida para compatibilidade
 async function uploadFotoDireto(file, storagePath) {
   return new Promise(resolve => {
     uploadFotoBackground(file, storagePath, resolve);
@@ -1084,30 +1109,26 @@ function save() {
 
 async function saveToFirebase() {
   try {
-    // Remove apenas fotos base64 (que ainda não foram enviadas ao Storage)
-    // URLs do Firebase Storage são mantidas normalmente
-    const dataSemFotos = JSON.parse(JSON.stringify(data));
-    dataSemFotos.ambientes = dataSemFotos.ambientes.map(a => {
-      const x={...a};
-      if (x.foto && x.foto.startsWith('data:')) x.foto = null;
-      return x;
-    });
-    dataSemFotos.moveis = dataSemFotos.moveis.map(m => {
-      const x={...m};
-      if (x.foto && x.foto.startsWith('data:')) x.foto = null;
-      if (x.fotos) x.fotos = x.fotos.map(f => (f && f.startsWith('data:')) ? null : f).filter(Boolean);
-      return x;
-    });
-    dataSemFotos.items = dataSemFotos.items.map(i => {
-      const x={...i};
-      if (x.foto && x.foto.startsWith('data:')) x.foto = null;
-      return x;
-    });
-    await DOC_REF.set(dataSemFotos);
+    // Salva tudo normalmente — base64 comprimido é pequeno (~150KB) e fica como fallback
+    // até o upload em background substituir pela URL do Storage
+    await DOC_REF.set(data);
     setSyncIndicator('ok');
   } catch(e) {
-    console.warn('Firebase save error:', e);
-    setSyncIndicator('error');
+    // Se falhar por tamanho (base64 grande demais pro Firestore), tenta sem as fotos base64
+    try {
+      const dataSemBase64 = JSON.parse(JSON.stringify(data));
+      dataSemBase64.ambientes = dataSemBase64.ambientes.map(a => ({...a, foto: (a.foto&&a.foto.startsWith('data:'))?null:a.foto}));
+      dataSemBase64.moveis    = dataSemBase64.moveis.map(m => ({...m,
+        foto: (m.foto&&m.foto.startsWith('data:'))?null:m.foto,
+        fotos: (m.fotos||[]).map(f=>(f&&f.startsWith('data:'))?null:f).filter(Boolean)
+      }));
+      dataSemBase64.items     = dataSemBase64.items.map(i => ({...i, foto: (i.foto&&i.foto.startsWith('data:'))?null:i.foto}));
+      await DOC_REF.set(dataSemBase64);
+      setSyncIndicator('ok');
+    } catch(e2) {
+      console.warn('Firebase save error:', e2);
+      setSyncIndicator('error');
+    }
   }
 }
 
@@ -1223,13 +1244,11 @@ function prevFoto(input, previewId, placeholderId) {
   if (!input.files[0]) return;
   const file = input.files[0];
   input.value = '';
-  // Preview imediato
-  comprimirImagem(file).then(dataUrl => {
-    document.getElementById(previewId).src = dataUrl;
-    document.getElementById(previewId).style.display = 'block';
-    document.getElementById(placeholderId).style.display = 'none';
-  });
-  // Guarda o file pendente vinculado ao previewId
+  // Preview instantâneo com ObjectURL (sem conversão)
+  document.getElementById(previewId).src = URL.createObjectURL(file);
+  document.getElementById(previewId).style.display = 'block';
+  document.getElementById(placeholderId).style.display = 'none';
+  // Guarda o File original para upload no salvarItem
   prevFoto._pending = prevFoto._pending || {};
   prevFoto._pending[previewId] = file;
 }
@@ -1269,17 +1288,14 @@ function adicionarFotosMovel(input) {
   const files = Array.from(input.files);
   if (!files.length) return;
   input.value = '';
-  // Preview imediato com base64 comprimido; arquivo original guardado para upload no salvar
   if (!adicionarFotosMovel._pendingFiles) adicionarFotosMovel._pendingFiles = [];
-  let pendentes = files.length;
+  // Preview instantâneo com ObjectURL, File original guardado para upload
   files.forEach(file => {
-    comprimirImagem(file).then(dataUrl => {
-      movelFotosTemp.push(dataUrl);
-      adicionarFotosMovel._pendingFiles.push({ file, idx: movelFotosTemp.length - 1 });
-      pendentes--;
-      if (pendentes === 0) renderMovelFotosGrid();
-    });
+    const idx = movelFotosTemp.length;
+    movelFotosTemp.push(URL.createObjectURL(file));
+    adicionarFotosMovel._pendingFiles.push({ file, idx });
   });
+  renderMovelFotosGrid();
 }
 
 function removerFotoMovel(idx) {
@@ -1719,11 +1735,10 @@ function prevFotoAmb(input) {
   if (!input.files || !input.files[0]) return;
   const file = input.files[0];
   input.value = '';
-  // Mostra preview local imediato enquanto faz upload
-  comprimirImagem(file).then(dataUrl => mostrarFotoAmb(dataUrl));
-  // Armazena o file para uso no salvarAmbiente
+  // Preview instantâneo com ObjectURL (sem conversão)
+  mostrarFotoAmb(URL.createObjectURL(file));
+  // Guarda o File original para upload no salvarAmbiente
   prevFotoAmb._pendingFile = file;
-  prevFotoAmb._pendingPath = null; // path será definido no salvarAmbiente
 }
 
 // ═══════════════════════════════════════════
@@ -1756,30 +1771,41 @@ function salvarAmbiente() {
   if (!nome) { alert('Informe o nome!'); return; }
   const id = document.getElementById('editAmbId').value;
   const ambId = id || ('A' + Date.now());
-
-  // Foto: usa preview local (base64) imediatamente
-  const preview = document.getElementById('ambFotoPreview');
-  let foto = (preview.src && preview.src !== window.location.href) ? preview.src : null;
-
-  const obj = { nome, emoji: document.getElementById('ambEmoji').value.trim()||'🏠',
-    desc: document.getElementById('ambDesc').value.trim(), foto };
-  if (id) {
-    const i = data.ambientes.findIndex(a=>a.id===id);
-    data.ambientes[i] = {...data.ambientes[i],...obj};
-  } else {
-    obj.id = ambId; data.ambientes.push(obj);
-  }
-  save(); closeModal('ambiente'); renderLocalidades(); popularSelectAmbientes();
-  if (navAmbienteId === id) abrirAmbiente(id);
-
-  // Upload em background: substitui base64 pela URL do Storage quando terminar
   const pendingFile = prevFotoAmb._pendingFile;
+  prevFotoAmb._pendingFile = null;
+
+  // Foto atual (pode ser URL do Storage de foto já existente)
+  const preview = document.getElementById('ambFotoPreview');
+  let foto = (preview.src && !preview.src.startsWith('blob:') && preview.src !== window.location.href)
+    ? preview.src : null;
+
+  const commitSave = (fotoFinal) => {
+    const obj = { nome, emoji: document.getElementById('ambEmoji').value.trim()||'🏠',
+      desc: document.getElementById('ambDesc').value.trim(), foto: fotoFinal };
+    if (id) {
+      const i = data.ambientes.findIndex(a=>a.id===id);
+      if (i >= 0) data.ambientes[i] = {...data.ambientes[i],...obj};
+    } else {
+      obj.id = ambId; data.ambientes.push(obj);
+    }
+    save(); renderLocalidades(); popularSelectAmbientes();
+    if (navAmbienteId === ambId) abrirAmbiente(ambId);
+  };
+
   if (pendingFile) {
-    prevFotoAmb._pendingFile = null;
-    uploadFotoBackground(pendingFile, `ambientes/${ambId}`, url => {
-      const amb = data.ambientes.find(a => a.id === ambId);
-      if (amb && url) { amb.foto = url; save(); renderLocalidades(); }
+    // Gera base64 comprimido como fallback imediato (persiste no Firestore enquanto upload sobe)
+    comprimirImagem(pendingFile).then(base64 => {
+      commitSave(base64);
+      closeModal('ambiente');
+      // Sobe em background e substitui pelo URL quando pronto
+      uploadFotoBackground(pendingFile, `ambientes/${ambId}`, url => {
+        const amb = data.ambientes.find(a => a.id === ambId);
+        if (amb && url) { amb.foto = url; save(); renderLocalidades(); }
+      });
     });
+  } else {
+    commitSave(foto);
+    closeModal('ambiente');
   }
 }
 
@@ -1832,36 +1858,55 @@ function salvarMovel() {
   const ambId = document.getElementById('movelAmbienteId').value;
   const id = document.getElementById('editMovelId').value;
   const movelId = id || ('M' + Date.now());
-
-  // Salva com preview base64 imediatamente
-  const fotos = [...movelFotosTemp];
-  const foto = fotos[0] || null;
-  const obj = { nome, tipo:document.getElementById('movelTipo').value,
-    cor:document.getElementById('movelCor').value.trim(), posicoes, ambId, foto, fotos };
-  if (id) {
-    const i = data.moveis.findIndex(m=>m.id===id);
-    data.moveis[i] = {...data.moveis[i],...obj};
-  } else {
-    obj.id = movelId; data.moveis.push(obj);
-  }
-  save(); closeModal('movel');
-  if (navAmbienteId) abrirAmbiente(navAmbienteId);
-  else renderLocalidades();
-
-  // Upload em background de cada foto pendente
   const pendingFiles = [...(adicionarFotosMovel._pendingFiles || [])];
   adicionarFotosMovel._pendingFiles = [];
-  pendingFiles.forEach(p => {
-    uploadFotoBackground(p.file, `moveis/${movelId}/${p.idx}`, url => {
-      const mov = data.moveis.find(m => m.id === movelId);
-      if (mov && url) {
-        if (mov.fotos && p.idx < mov.fotos.length) mov.fotos[p.idx] = url;
-        if (p.idx === 0) mov.foto = url;
-        save();
-        if (navAmbienteId) abrirAmbiente(navAmbienteId);
-      }
+
+  const commitSave = (fotosFinais) => {
+    const fotos = fotosFinais;
+    const foto = fotos[0] || null;
+    const obj = { nome, tipo:document.getElementById('movelTipo').value,
+      cor:document.getElementById('movelCor').value.trim(), posicoes, ambId, foto, fotos };
+    if (id) {
+      const i = data.moveis.findIndex(m=>m.id===id);
+      if (i >= 0) data.moveis[i] = {...data.moveis[i],...obj};
+    } else {
+      obj.id = movelId; data.moveis.push(obj);
+    }
+    save();
+    if (navAmbienteId) abrirAmbiente(navAmbienteId);
+    else renderLocalidades();
+  };
+
+  if (pendingFiles.length) {
+    // Converte todos os ObjectURLs pendentes para base64 comprimido como fallback imediato
+    const fotosBase64 = [...movelFotosTemp];
+    let restantes = pendingFiles.length;
+    pendingFiles.forEach(p => {
+      comprimirImagem(p.file).then(base64 => {
+        fotosBase64[p.idx] = base64;
+        restantes--;
+        if (restantes === 0) {
+          commitSave(fotosBase64);
+          closeModal('movel');
+          // Upload em background
+          pendingFiles.forEach(pf => {
+            uploadFotoBackground(pf.file, `moveis/${movelId}/${pf.idx}`, url => {
+              const mov = data.moveis.find(m => m.id === movelId);
+              if (mov && url) {
+                if (mov.fotos && pf.idx < mov.fotos.length) mov.fotos[pf.idx] = url;
+                if (pf.idx === 0) mov.foto = url;
+                save();
+                if (navAmbienteId) abrirAmbiente(navAmbienteId);
+              }
+            });
+          });
+        }
+      });
     });
-  });
+  } else {
+    commitSave([...movelFotosTemp]);
+    closeModal('movel');
+  }
 }
 
 function excluirMovel(id) {
@@ -2000,45 +2045,57 @@ function salvarItem() {
   const id = document.getElementById('editItemId').value;
   const itemId = id || ('I' + Date.now());
   const locTipo = document.getElementById('itemLocTipo').value || 'avulso';
+  const pendingFiles = prevFoto._pending || {};
+  const pendingFile = pendingFiles['itemFotoPreview'];
+  if (pendingFile) delete pendingFiles['itemFotoPreview'];
 
-  // Usa preview base64 imediatamente
-  const foto = getFotoSrc('itemFotoPreview');
+  // Foto existente (URL do Storage) — não é blob nem base64 pendente
+  const previewEl = document.getElementById('itemFotoPreview');
+  const fotoExistente = (previewEl && previewEl.src &&
+    !previewEl.src.startsWith('blob:') && previewEl.src !== window.location.href)
+    ? previewEl.src : null;
 
   const ambId   = locTipo !== 'avulso' ? document.getElementById('itemAmbId').value : '';
   const movelId = locTipo === 'movel'  ? document.getElementById('itemMovelId').value : '';
   const posicao = locTipo === 'movel'  ? document.getElementById('itemPosicao').value : '';
 
-  const obj = {
+  const buildObj = (foto) => ({
     nome, cat:document.getElementById('itemCat').value,
     qtd:Number(qtd), qtdMin:Number(document.getElementById('itemQtdMin').value||0),
     desc:document.getElementById('itemDesc').value,
-    ambId, movelId, posicao,
-    locTipo,
+    ambId, movelId, posicao, locTipo,
     locObs:document.getElementById('itemLocObs').value,
     validade:document.getElementById('itemValidade').value,
-    tags:getTagsSelecionadas(),
-    camposExtras:getCamposExtras(), foto
-  };
-  if (id) {
-    const i=data.items.findIndex(x=>x.id===id);
-    data.items[i]={...data.items[i],...obj};
-  } else {
-    obj.id = itemId; obj.dataCad=new Date().toLocaleDateString('pt-BR');
-    data.items.push(obj);
-  }
-  save(); closeModal('item'); renderItems();
-  if (navMovelId) abrirMovel(navMovelId);
-  else if (navAmbienteId) abrirAmbiente(navAmbienteId);
+    tags:getTagsSelecionadas(), camposExtras:getCamposExtras(), foto
+  });
 
-  // Upload em background: substitui base64 pela URL do Storage quando terminar
-  const pendingFiles = prevFoto._pending || {};
-  const pendingFile = pendingFiles['itemFotoPreview'];
+  const commitSave = (foto) => {
+    const obj = buildObj(foto);
+    if (id) {
+      const i=data.items.findIndex(x=>x.id===id);
+      data.items[i]={...data.items[i],...obj};
+    } else {
+      obj.id = itemId; obj.dataCad=new Date().toLocaleDateString('pt-BR');
+      data.items.push(obj);
+    }
+    save(); renderItems();
+    if (navMovelId) abrirMovel(navMovelId);
+    else if (navAmbienteId) abrirAmbiente(navAmbienteId);
+  };
+
   if (pendingFile) {
-    delete pendingFiles['itemFotoPreview'];
-    uploadFotoBackground(pendingFile, `items/${itemId}`, url => {
-      const item = data.items.find(i => i.id === itemId);
-      if (item && url) { item.foto = url; save(); renderItems(); }
+    // Base64 comprimido como fallback imediato
+    comprimirImagem(pendingFile).then(base64 => {
+      commitSave(base64);
+      closeModal('item');
+      uploadFotoBackground(pendingFile, `items/${itemId}`, url => {
+        const item = data.items.find(i => i.id === itemId);
+        if (item && url) { item.foto = url; save(); renderItems(); }
+      });
     });
+  } else {
+    commitSave(fotoExistente);
+    closeModal('item');
   }
 }
 
