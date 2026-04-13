@@ -454,6 +454,15 @@ tr:hover td{background:rgba(255,255,255,0.02)}
       <div class="moveis-grid" id="itens-montados-grid"></div>
     </div>
 
+    <!-- Itens desmontados no ambiente -->
+    <div id="itens-desmontados-section" style="display:none;margin-bottom:20px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div style="font-size:13px;font-weight:700;color:var(--gold-light);letter-spacing:.5px;text-transform:uppercase">🛖 Itens Desmontados no Ambiente</div>
+        <button class="btn btn-ghost btn-sm" id="btn-add-desmontado">＋ Adicionar</button>
+      </div>
+      <div class="moveis-grid" id="itens-desmontados-grid"></div>
+    </div>
+
     <!-- Label móveis (só aparece se tiver itens montados E móveis) -->
     <div id="moveis-divisor" style="display:none;margin-bottom:10px">
       <div style="font-size:13px;font-weight:700;color:var(--gold-light);letter-spacing:.5px;text-transform:uppercase">🗄️ Móveis</div>
@@ -769,19 +778,23 @@ tr:hover td{background:rgba(255,255,255,0.02)}
     <div style="background:rgba(201,168,76,0.06);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:14px">
       <div style="font-size:12px;font-weight:700;color:var(--gold-light);letter-spacing:.5px;text-transform:uppercase;margin-bottom:12px">📍 Localização</div>
 
-      <!-- Tipo de localização: 3 opções -->
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:14px" id="wrap-tipo-loc">
+      <!-- Tipo de localização: 4 opções -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:14px" id="wrap-tipo-loc">
         <button type="button" id="locTipo-movel" onclick="setLocTipo('movel')"
           style="padding:8px 4px;border-radius:10px;border:2px solid var(--border);background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.6);font-size:11px;font-weight:600;cursor:pointer;transition:.2s;font-family:'DM Sans',sans-serif;text-align:center">
-          🗄️<br>Dentro de<br>Móvel
+          🗄️<br>Dentro de Móvel
         </button>
         <button type="button" id="locTipo-montado" onclick="setLocTipo('montado')"
           style="padding:8px 4px;border-radius:10px;border:2px solid var(--border);background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.6);font-size:11px;font-weight:600;cursor:pointer;transition:.2s;font-family:'DM Sans',sans-serif;text-align:center">
-          🏗️<br>Montado no<br>Ambiente
+          🏗️<br>Montado no Ambiente
+        </button>
+        <button type="button" id="locTipo-desmontado" onclick="setLocTipo('desmontado')"
+          style="padding:8px 4px;border-radius:10px;border:2px solid var(--border);background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.6);font-size:11px;font-weight:600;cursor:pointer;transition:.2s;font-family:'DM Sans',sans-serif;text-align:center">
+          🛖<br>Desmontado no Ambiente
         </button>
         <button type="button" id="locTipo-avulso" onclick="setLocTipo('avulso')"
           style="padding:8px 4px;border-radius:10px;border:2px solid var(--border);background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.6);font-size:11px;font-weight:600;cursor:pointer;transition:.2s;font-family:'DM Sans',sans-serif;text-align:center">
-          📦<br>Sem local<br>fixo
+          📦<br>Sem local fixo
         </button>
       </div>
 
@@ -1514,15 +1527,14 @@ function abrirAmbiente(id) {
 
   atualizarBreadcrumb();
 
-  // Seção "Itens Montados" — sempre visível dentro do ambiente
-  const itensMontados = data.items.filter(i => i.ambId === id && !i.movelId);
-  const secMontados = document.getElementById('itens-montados-section');
-  const gridMontados = document.getElementById('itens-montados-grid');
-  secMontados.style.display = 'block';
-  document.getElementById('btn-add-montado').onclick = () => abrirModalItem(id, null, true);
-
-  if (itensMontados.length) {
-    gridMontados.innerHTML = itensMontados.map(it => {
+  // Helper para renderizar cards de itens soltos no ambiente
+  function renderItensAmbGrid(itens, gridId, tipoLabel) {
+    const grid = document.getElementById(gridId);
+    if (!itens.length) {
+      grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:18px 0;color:var(--muted);font-size:13px">Nenhum item ${tipoLabel} aqui ainda. Clique em "＋ Adicionar".</div>`;
+      return;
+    }
+    grid.innerHTML = itens.map(it => {
       const fotoHtml = it.foto
         ? `<div class="movel-foto"><img src="${it.foto}" alt="${it.nome}"></div>`
         : `<div class="movel-foto" style="font-size:36px">${catEmoji[it.cat]||'📦'}</div>`;
@@ -1541,9 +1553,32 @@ function abrirAmbiente(id) {
         </div>
       </div>`;
     }).join('');
-  } else {
-    gridMontados.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:18px 0;color:var(--muted);font-size:13px">Nenhum item montado aqui ainda. Clique em "＋ Adicionar".</div>`;
   }
+
+  // Seção "Itens Montados"
+  const itensMontados = data.items.filter(i =>
+    i.ambId === id && !i.movelId &&
+    (i.locTipo === 'montado' || (!i.locTipo && !i.movelId))
+  );
+  const secMontados = document.getElementById('itens-montados-section');
+  secMontados.style.display = 'block';
+  document.getElementById('btn-add-montado').onclick = () => {
+    abrirModalItem(id, null, false);
+    setTimeout(() => { setLocTipo('montado'); document.getElementById('itemAmbId').value = id; }, 60);
+  };
+  renderItensAmbGrid(itensMontados, 'itens-montados-grid', 'montado');
+
+  // Seção "Itens Desmontados no Ambiente"
+  const itensDesmontados = data.items.filter(i =>
+    i.ambId === id && !i.movelId && i.locTipo === 'desmontado'
+  );
+  const secDesmontados = document.getElementById('itens-desmontados-section');
+  secDesmontados.style.display = 'block';
+  document.getElementById('btn-add-desmontado').onclick = () => {
+    abrirModalItem(id, null, false);
+    setTimeout(() => { setLocTipo('desmontado'); document.getElementById('itemAmbId').value = id; }, 60);
+  };
+  renderItensAmbGrid(itensDesmontados, 'itens-desmontados-grid', 'desmontado');
 
   const moveis = data.moveis.filter(m=>m.ambId===id);
   const grid = document.getElementById('moveis-grid');
@@ -1924,7 +1959,7 @@ function excluirMovel(id) {
 // Define o tipo de localização no modal de item
 function setLocTipo(tipo) {
   // Atualiza visuais dos botões
-  ['movel','montado','avulso'].forEach(t => {
+  ['movel','montado','desmontado','avulso'].forEach(t => {
     const btn = document.getElementById('locTipo-'+t);
     if (!btn) return;
     const ativo = t === tipo;
@@ -1932,7 +1967,7 @@ function setLocTipo(tipo) {
     btn.style.borderColor = ativo ? 'var(--gold)' : 'var(--border)';
     btn.style.color = ativo ? 'var(--gold-light)' : 'rgba(255,255,255,0.6)';
   });
-  document.getElementById('wrap-amb').style.display   = tipo === 'avulso' ? 'none' : 'block';
+  document.getElementById('wrap-amb').style.display    = tipo === 'avulso' ? 'none' : 'block';
   document.getElementById('wrap-movel').style.display  = tipo === 'movel'  ? 'block' : 'none';
   document.getElementById('wrap-posicao').style.display = 'none';
   // Limpa seleções ao trocar tipo
