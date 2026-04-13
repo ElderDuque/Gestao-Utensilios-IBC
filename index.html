@@ -949,6 +949,24 @@ const storage = firebase.storage();
 const DOC_REF = db.collection('ibc').doc('dados');
 
 // ── Utilitários de Storage ─────────────────────────────────────────
+
+// Mostra/oculta indicador de upload de foto
+function setFotoUploadStatus(msg) {
+  let el = document.getElementById('foto-upload-status');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'foto-upload-status';
+    el.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);' +
+      'background:rgba(201,168,76,0.95);color:#1a0808;padding:10px 20px;border-radius:20px;' +
+      'font-size:13px;font-weight:700;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,0.4);' +
+      'display:none;white-space:nowrap';
+    document.body.appendChild(el);
+  }
+  if (msg) { el.textContent = msg; el.style.display = 'block'; }
+  else { el.style.display = 'none'; }
+}
+
+// Faz upload de um base64 direto para o Firebase Storage e retorna a URL pública
 async function uploadFoto(base64, path) {
   if (!base64 || !base64.startsWith('data:')) return null;
   try {
@@ -968,10 +986,28 @@ async function deleteFoto(url) {
   } catch(e) { /* ignora se já não existe */ }
 }
 
-// Converte todas as fotos base64 pendentes para URLs do Storage
+// Upload direto: comprime, envia ao Storage e retorna URL — sem passar pelo localStorage
+async function uploadFotoDireto(file, storagePath) {
+  setFotoUploadStatus('☁️ Enviando foto...');
+  try {
+    const base64 = await comprimirImagem(file);
+    const url = await uploadFoto(base64, storagePath);
+    setFotoUploadStatus('');
+    if (url) return url;
+    // fallback offline: retorna base64 comprimido para não perder a foto
+    setFotoUploadStatus('⚠️ Offline — foto salva localmente');
+    setTimeout(() => setFotoUploadStatus(''), 3000);
+    return base64;
+  } catch(e) {
+    setFotoUploadStatus('');
+    console.warn('uploadFotoDireto error:', e);
+    return await comprimirImagem(file);
+  }
+}
+
+// Mantida apenas para migrar dados antigos que ainda tenham base64 no Firestore
 async function syncFotosParaStorage() {
   let alterou = false;
-
   for (const item of data.items) {
     if (item.foto && item.foto.startsWith('data:')) {
       const url = await uploadFoto(item.foto, `items/${item.id}`);
@@ -998,13 +1034,9 @@ async function syncFotosParaStorage() {
       }
     }
   }
-
   if (alterou) {
     localStorage.setItem('ibcdata2', JSON.stringify(data));
     await saveToFirebase();
-    renderItems && renderItems();
-    renderAmbientes && renderAmbientes();
-    renderMoveis && renderMoveis();
   }
 }
 
@@ -1068,21 +1100,6 @@ async function loadFromFirebase() {
     if (doc.exists) {
       const cloud = doc.data();
       if (cloud && typeof cloud === 'object') {
-        // Preserva fotos base64 locais (ainda não enviadas ao Storage)
-        const localData = JSON.parse(localStorage.getItem('ibcdata2') || '{}');
-        const fotosPorAmb   = {};
-        const fotosPorMovel = {};
-        const fotosPorItem  = {};
-        (localData.ambientes  || []).forEach(a => { if (a.foto && a.foto.startsWith('data:')) fotosPorAmb[a.id] = a.foto; });
-        (localData.moveis     || []).forEach(m => {
-          const temBase64 = (m.fotos||[]).some(f=>f&&f.startsWith('data:')) || (m.foto&&m.foto.startsWith('data:'));
-          if (temBase64) {
-            if (m.fotos && m.fotos.length) fotosPorMovel[m.id] = { foto: m.foto, fotos: m.fotos };
-            else if (m.foto) fotosPorMovel[m.id] = { foto: m.foto, fotos: [m.foto] };
-          }
-        });
-        (localData.items      || []).forEach(i => { if (i.foto && i.foto.startsWith('data:')) fotosPorItem[i.id] = i.foto; });
-
         data = cloud;
         if (!data.ambientes)   data.ambientes   = [];
         if (!data.tags)        data.tags        = [];
@@ -1091,25 +1108,21 @@ async function loadFromFirebase() {
         if (!data.emprestimos) data.emprestimos = [];
         if (!data.ocorrencias) data.ocorrencias = [];
 
-        // Restaura fotos base64 locais pendentes (serão enviadas ao Storage em seguida)
-        data.ambientes.forEach(a => { if (fotosPorAmb[a.id])   a.foto = fotosPorAmb[a.id]; });
-        data.moveis.forEach(m   => { if (fotosPorMovel[m.id]) { m.foto = fotosPorMovel[m.id].foto; m.fotos = fotosPorMovel[m.id].fotos; } });
-        data.items.forEach(i    => { if (fotosPorItem[i.id])   i.foto = fotosPorItem[i.id]; });
-
         localStorage.setItem('ibcdata2', JSON.stringify(data));
         popularSelectAmbientes();
         executarBusca();
         setSyncIndicator('ok');
 
-        // Envia fotos base64 pendentes para o Storage em background
-        setTimeout(() => syncFotosParaStorage(), 500);
+        // Migração: se ainda houver base64 antigo no Firestore, envia ao Storage
+        const temBase64 = [...data.items, ...data.ambientes, ...data.moveis]
+          .some(x => (x.foto && x.foto.startsWith('data:')) ||
+            (x.fotos && x.fotos.some(f => f && f.startsWith('data:'))));
+        if (temBase64) setTimeout(() => syncFotosParaStorage(), 500);
       }
     } else {
       // Primeira vez — envia dados locais para nuvem
       if (data.items.length > 0 || data.ambientes.length > 0) {
         await saveToFirebase();
-        // Envia fotos para Storage em background
-        setTimeout(() => syncFotosParaStorage(), 500);
       }
       setSyncIndicator('ok');
     }
@@ -1191,13 +1204,17 @@ function openModal(id) { document.getElementById('modal-'+id).classList.add('ope
 
 function prevFoto(input, previewId, placeholderId) {
   if (!input.files[0]) return;
-  const r = new FileReader();
-  r.onload = e => {
-    document.getElementById(previewId).src = e.target.result;
+  const file = input.files[0];
+  input.value = '';
+  // Preview imediato
+  comprimirImagem(file).then(dataUrl => {
+    document.getElementById(previewId).src = dataUrl;
     document.getElementById(previewId).style.display = 'block';
     document.getElementById(placeholderId).style.display = 'none';
-  };
-  r.readAsDataURL(input.files[0]);
+  });
+  // Guarda o file pendente vinculado ao previewId
+  prevFoto._pending = prevFoto._pending || {};
+  prevFoto._pending[previewId] = file;
 }
 
 function getFotoSrc(id) {
@@ -1234,15 +1251,18 @@ let movelFotosTemp = [];
 function adicionarFotosMovel(input) {
   const files = Array.from(input.files);
   if (!files.length) return;
+  input.value = '';
+  // Preview imediato com base64 comprimido; arquivo original guardado para upload no salvar
+  if (!adicionarFotosMovel._pendingFiles) adicionarFotosMovel._pendingFiles = [];
   let pendentes = files.length;
   files.forEach(file => {
     comprimirImagem(file).then(dataUrl => {
       movelFotosTemp.push(dataUrl);
+      adicionarFotosMovel._pendingFiles.push({ file, idx: movelFotosTemp.length - 1 });
       pendentes--;
       if (pendentes === 0) renderMovelFotosGrid();
     });
   });
-  input.value = '';
 }
 
 function removerFotoMovel(idx) {
@@ -1680,9 +1700,13 @@ function removerFotoAmb() {
 
 function prevFotoAmb(input) {
   if (!input.files || !input.files[0]) return;
-  const reader = new FileReader();
-  reader.onload = e => mostrarFotoAmb(e.target.result);
-  reader.readAsDataURL(input.files[0]);
+  const file = input.files[0];
+  input.value = '';
+  // Mostra preview local imediato enquanto faz upload
+  comprimirImagem(file).then(dataUrl => mostrarFotoAmb(dataUrl));
+  // Armazena o file para uso no salvarAmbiente
+  prevFotoAmb._pendingFile = file;
+  prevFotoAmb._pendingPath = null; // path será definido no salvarAmbiente
 }
 
 // ═══════════════════════════════════════════
@@ -1694,6 +1718,7 @@ function abrirModalAmbiente(id) {
   document.getElementById('ambDesc').value='';
   document.getElementById('editAmbId').value='';
   removerFotoAmb();
+  prevFotoAmb._pendingFile = null;
   document.getElementById('tituloModalAmbiente').textContent = '🏠 Novo Ambiente';
   if (id) {
     const a = data.ambientes.find(x=>x.id===id);
@@ -1709,22 +1734,39 @@ function abrirModalAmbiente(id) {
   openModal('ambiente');
 }
 
-function salvarAmbiente() {
+async function salvarAmbiente() {
   const nome = document.getElementById('ambNome').value.trim();
   if (!nome) { alert('Informe o nome!'); return; }
-  const preview = document.getElementById('ambFotoPreview');
-  const foto = (preview.src && preview.src !== window.location.href) ? preview.src : null;
   const id = document.getElementById('editAmbId').value;
+  const ambId = id || ('A' + Date.now());
+
+  // Upload direto ao Storage se houver arquivo pendente
+  let foto = null;
+  const pendingFile = prevFotoAmb._pendingFile;
+  if (pendingFile) {
+    foto = await uploadFotoDireto(pendingFile, `ambientes/${ambId}`);
+    prevFotoAmb._pendingFile = null;
+  } else {
+    // Mantém foto existente (URL do Storage ou null)
+    const preview = document.getElementById('ambFotoPreview');
+    foto = (preview.src && preview.src !== window.location.href && !preview.src.startsWith('data:'))
+      ? preview.src : null;
+    // Se ainda for base64 (foto antiga), usa ela como está
+    if (!foto) {
+      const src = preview.src;
+      if (src && src.startsWith('data:')) foto = src;
+    }
+  }
+
   const obj = { nome, emoji: document.getElementById('ambEmoji').value.trim()||'🏠',
     desc: document.getElementById('ambDesc').value.trim(), foto };
   if (id) {
     const i = data.ambientes.findIndex(a=>a.id===id);
     data.ambientes[i] = {...data.ambientes[i],...obj};
   } else {
-    obj.id = 'A'+Date.now(); data.ambientes.push(obj);
+    obj.id = ambId; data.ambientes.push(obj);
   }
   save(); closeModal('ambiente'); renderLocalidades(); popularSelectAmbientes();
-  // Se estava dentro do ambiente, recarrega a tela
   if (navAmbienteId === id) abrirAmbiente(id);
 }
 
@@ -1748,6 +1790,7 @@ function abrirModalMovel(ambId, id) {
   document.getElementById('movelAmbienteId').value=ambId||navAmbienteId||'';
   document.getElementById('editMovelId').value='';
   movelFotosTemp = [];
+  adicionarFotosMovel._pendingFiles = [];
   renderMovelFotosGrid();
   document.getElementById('tituloModalMovel').textContent = '🗄️ Novo Móvel';
   if (id) {
@@ -1769,13 +1812,24 @@ function abrirModalMovel(ambId, id) {
   openModal('movel');
 }
 
-function salvarMovel() {
+async function salvarMovel() {
   const nome = document.getElementById('movelNome').value.trim();
   if (!nome) { alert('Informe o nome!'); return; }
   const posicoes = document.getElementById('movelPosicoes').value.split('\n').map(s=>s.trim()).filter(Boolean);
   const ambId = document.getElementById('movelAmbienteId').value;
   const id = document.getElementById('editMovelId').value;
-  // guarda array de fotos e mantém foto (legado) como primeira foto
+  const movelId = id || ('M' + Date.now());
+
+  // Upload direto ao Storage para fotos com arquivo pendente
+  const pendingFiles = adicionarFotosMovel._pendingFiles || [];
+  for (const p of pendingFiles) {
+    if (p.idx < movelFotosTemp.length && movelFotosTemp[p.idx] && movelFotosTemp[p.idx].startsWith('data:')) {
+      const url = await uploadFotoDireto(p.file, `moveis/${movelId}/${p.idx}`);
+      if (url) movelFotosTemp[p.idx] = url;
+    }
+  }
+  adicionarFotosMovel._pendingFiles = [];
+
   const fotos = [...movelFotosTemp];
   const foto = fotos[0] || null;
   const obj = { nome, tipo:document.getElementById('movelTipo').value,
@@ -1784,7 +1838,7 @@ function salvarMovel() {
     const i = data.moveis.findIndex(m=>m.id===id);
     data.moveis[i] = {...data.moveis[i],...obj};
   } else {
-    obj.id='M'+Date.now(); data.moveis.push(obj);
+    obj.id = movelId; data.moveis.push(obj);
   }
   save(); closeModal('movel');
   if (navAmbienteId) abrirAmbiente(navAmbienteId);
@@ -1920,15 +1974,24 @@ function atualizarPosicoes() {
   wrap.style.display = 'block';
 }
 
-function salvarItem() {
+async function salvarItem() {
   const nome = document.getElementById('itemNome').value.trim();
   const qtd = document.getElementById('itemQtd').value;
   if (!nome || qtd==='') { alert('Preencha nome e quantidade!'); return; }
-  const foto = getFotoSrc('itemFotoPreview');
   const id = document.getElementById('editItemId').value;
+  const itemId = id || ('I' + Date.now());
   const locTipo = document.getElementById('itemLocTipo').value || 'avulso';
 
-  // Resolve ambId/movelId/posicao conforme tipo
+  // Upload direto ao Storage se houver arquivo pendente
+  let foto = getFotoSrc('itemFotoPreview');
+  const pendingFiles = prevFoto._pending || {};
+  const pendingFile = pendingFiles['itemFotoPreview'];
+  if (pendingFile) {
+    const url = await uploadFotoDireto(pendingFile, `items/${itemId}`);
+    if (url) foto = url;
+    delete pendingFiles['itemFotoPreview'];
+  }
+
   const ambId   = locTipo !== 'avulso' ? document.getElementById('itemAmbId').value : '';
   const movelId = locTipo === 'movel'  ? document.getElementById('itemMovelId').value : '';
   const posicao = locTipo === 'movel'  ? document.getElementById('itemPosicao').value : '';
@@ -1948,7 +2011,7 @@ function salvarItem() {
     const i=data.items.findIndex(x=>x.id===id);
     data.items[i]={...data.items[i],...obj};
   } else {
-    obj.id='I'+Date.now(); obj.dataCad=new Date().toLocaleDateString('pt-BR');
+    obj.id = itemId; obj.dataCad=new Date().toLocaleDateString('pt-BR');
     data.items.push(obj);
   }
   save(); closeModal('item'); renderItems();
