@@ -646,7 +646,7 @@ tr:hover td{background:rgba(255,255,255,0.02)}
     </div>
     <div class="form-group">
       <label>Tipo</label>
-      <select id="movelTipo">
+      <select id="movelTipo" onchange="onMovelTipoChange()">
         <option value="armário">Armário</option>
         <option value="geladeira">Geladeira/Freezer</option>
         <option value="estante">Estante/Prateleira</option>
@@ -659,6 +659,42 @@ tr:hover td{background:rgba(255,255,255,0.02)}
       <label>Cor / Característica</label>
       <input type="text" id="movelCor" placeholder="Ex: azul, madeira escura, plástico cinza...">
     </div>
+    <!-- Portas (só aparece para tipo armário) -->
+    <div id="wrap-portas" style="display:none;margin-bottom:14px">
+      <div style="background:rgba(201,168,76,0.06);border:1px solid var(--border);border-radius:14px;padding:14px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+          <input type="checkbox" id="movelTemPortas" onchange="togglePortas()"
+            style="width:18px;height:18px;accent-color:var(--gold);cursor:pointer">
+          <label for="movelTemPortas" style="font-size:13px;font-weight:700;color:var(--gold-light);cursor:pointer;margin:0">
+            🚪 Este armário tem portas separadas?
+          </label>
+        </div>
+        <div id="wrap-qtd-portas" style="display:none">
+          <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Quantas portas?</div>
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+            <button type="button" onclick="alterarPortas(-1)"
+              style="background:rgba(255,255,255,0.08);border:1px solid var(--border);color:#fff;border-radius:8px;width:36px;height:36px;font-size:18px;cursor:pointer;font-family:inherit">−</button>
+            <span id="qtdPortasDisplay"
+              style="font-size:22px;font-weight:700;color:var(--gold-light);min-width:32px;text-align:center">2</span>
+            <button type="button" onclick="alterarPortas(1)"
+              style="background:rgba(255,255,255,0.08);border:1px solid var(--border);color:#fff;border-radius:8px;width:36px;height:36px;font-size:18px;cursor:pointer;font-family:inherit">+</button>
+            <input type="hidden" id="movelQtdPortas" value="2">
+          </div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Divisórias por porta (uma por linha):</div>
+          <textarea id="movelDivisoriasPorPorta" rows="4"
+            style="width:100%;padding:10px 14px;background:rgba(255,255,255,0.07);border:1px solid var(--border);border-radius:10px;color:#fff;font-size:13px;resize:vertical"
+            placeholder="Prateleira superior&#10;Prateleira do meio&#10;Prateleira inferior&#10;Topo">Prateleira superior
+Prateleira do meio
+Prateleira inferior
+Topo</textarea>
+          <button type="button" onclick="gerarPosicoesPortas(this)"
+            style="margin-top:10px;width:100%;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.3);color:var(--gold-light);border-radius:10px;padding:9px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">
+            ✨ Gerar posições automaticamente
+          </button>
+        </div>
+      </div>
+    </div>
+
     <div class="form-group">
       <label>Posições / Divisórias <small style="color:var(--muted)">(uma por linha)</small></label>
       <textarea id="movelPosicoes" rows="5" placeholder="Prateleira superior&#10;Prateleira do meio&#10;Prateleira inferior&#10;Gaveta 1&#10;Topo"></textarea>
@@ -1854,6 +1890,54 @@ function excluirAmbiente(id) {
 }
 
 // ═══════════════════════════════════════════
+// MODAL MÓVEL — PORTAS
+// ═══════════════════════════════════════════
+
+function onMovelTipoChange() {
+  const tipo = document.getElementById('movelTipo').value;
+  const wrapPortas = document.getElementById('wrap-portas');
+  // Mostra seção de portas só para armário e gaveteiro
+  wrapPortas.style.display = (tipo === 'armário' || tipo === 'gaveta') ? 'block' : 'none';
+}
+
+function togglePortas() {
+  const tem = document.getElementById('movelTemPortas').checked;
+  document.getElementById('wrap-qtd-portas').style.display = tem ? 'block' : 'none';
+}
+
+function alterarPortas(delta) {
+  const input = document.getElementById('movelQtdPortas');
+  const novo = Math.max(1, Math.min(10, Number(input.value) + delta));
+  input.value = novo;
+  document.getElementById('qtdPortasDisplay').textContent = novo;
+}
+
+function gerarPosicoesPortas(btn) {
+  const qtd = Number(document.getElementById('movelQtdPortas').value) || 2;
+  const divs = document.getElementById('movelDivisoriasPorPorta').value
+    .split('\n').map(s => s.trim()).filter(Boolean);
+  if (!divs.length) { alert('Informe ao menos uma divisória!'); return; }
+  const linhas = [];
+  for (let p = 1; p <= qtd; p++) {
+    divs.forEach(d => linhas.push(`Porta nº ${p} > ${d}`));
+  }
+  document.getElementById('movelPosicoes').value = linhas.join('\n');
+  // Feedback visual
+  if (btn) {
+    btn.textContent = '✅ Posições geradas!';
+    btn.style.background = 'rgba(76,175,122,0.2)';
+    btn.style.borderColor = 'rgba(76,175,122,0.4)';
+    btn.style.color = '#4caf7a';
+    setTimeout(() => {
+      btn.textContent = '✨ Gerar posições automaticamente';
+      btn.style.background = 'rgba(201,168,76,0.15)';
+      btn.style.borderColor = 'rgba(201,168,76,0.3)';
+      btn.style.color = 'var(--gold-light)';
+    }, 2000);
+  }
+}
+
+// ═══════════════════════════════════════════
 // MODAL MÓVEL
 // ═══════════════════════════════════════════
 function abrirModalMovel(ambId, id) {
@@ -1867,6 +1951,13 @@ function abrirModalMovel(ambId, id) {
   adicionarFotosMovel._pendingFiles = [];
   renderMovelFotosGrid();
   document.getElementById('tituloModalMovel').textContent = '🗄️ Novo Móvel';
+  // Reset portas
+  document.getElementById('movelTemPortas').checked = false;
+  document.getElementById('movelQtdPortas').value = '2';
+  document.getElementById('qtdPortasDisplay').textContent = '2';
+  document.getElementById('movelDivisoriasPorPorta').value = 'Prateleira superior\nPrateleira do meio\nPrateleira inferior\nTopo';
+  document.getElementById('wrap-qtd-portas').style.display = 'none';
+  onMovelTipoChange(); // exibe wrap-portas só se tipo for armário/gaveteiro
   if (id) {
     const m = data.moveis.find(x=>x.id===id);
     if (m) {
@@ -1881,6 +1972,15 @@ function abrirModalMovel(ambId, id) {
       if (m.fotos && m.fotos.length) movelFotosTemp = [...m.fotos];
       else if (m.foto) movelFotosTemp = [m.foto];
       renderMovelFotosGrid();
+      // Restaura estado das portas
+      onMovelTipoChange();
+      if (m.portas && m.portas > 0) {
+        document.getElementById('movelTemPortas').checked = true;
+        document.getElementById('movelQtdPortas').value = m.portas;
+        document.getElementById('qtdPortasDisplay').textContent = m.portas;
+        document.getElementById('movelDivisoriasPorPorta').value = (m.divisoriasPorPorta||[]).join('\n') || 'Prateleira superior\nPrateleira do meio\nPrateleira inferior\nTopo';
+        document.getElementById('wrap-qtd-portas').style.display = 'block';
+      }
     }
   }
   openModal('movel');
@@ -1899,8 +1999,14 @@ function salvarMovel() {
   const commitSave = (fotosFinais) => {
     const fotos = fotosFinais;
     const foto = fotos[0] || null;
+    const temPortas = document.getElementById('movelTemPortas').checked;
+    const portas = temPortas ? Number(document.getElementById('movelQtdPortas').value) : 0;
+    const divisoriasPorPorta = temPortas
+      ? document.getElementById('movelDivisoriasPorPorta').value.split('\n').map(s=>s.trim()).filter(Boolean)
+      : [];
     const obj = { nome, tipo:document.getElementById('movelTipo').value,
-      cor:document.getElementById('movelCor').value.trim(), posicoes, ambId, foto, fotos };
+      cor:document.getElementById('movelCor').value.trim(), posicoes, ambId, foto, fotos,
+      portas, divisoriasPorPorta };
     if (id) {
       const i = data.moveis.findIndex(m=>m.id===id);
       if (i >= 0) data.moveis[i] = {...data.moveis[i],...obj};
