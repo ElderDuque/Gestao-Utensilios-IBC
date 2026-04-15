@@ -494,7 +494,7 @@ tr:hover td{background:rgba(255,255,255,0.02)}
     <select id="filterCat" onchange="renderItems()">
       <option value="">Todas categorias</option>
       <option>Panela</option><option>Prato</option><option>Copo</option>
-      <option>Tigela</option><option>Talheres</option><option>Outro</option>
+      <option>Tigela</option><option>Talheres</option><option>Descartáveis</option><option>Outro</option>
     </select>
     <select id="filterAmbiente" onchange="renderItems()">
       <option value="">Todos os ambientes</option>
@@ -2731,14 +2731,14 @@ window.addEventListener('beforeinstallprompt',e=>{
   e.preventDefault(); deferredPrompt=e;
   if(!isStandalone) document.getElementById('installBanner').classList.add('show');
 });
-document.getElementById('installBtn').addEventListener('click',async()=>{
+document.getElementById('installBtn')?.addEventListener('click',async()=>{
   const banner=document.getElementById('installBanner');
   if(deferredPrompt){
     try{await deferredPrompt.prompt();await deferredPrompt.userChoice;}catch(e){}
-    deferredPrompt=null; banner.classList.remove('show');
-  } else { banner.classList.remove('show'); }
+    deferredPrompt=null; banner?.classList.remove('show');
+  } else { banner?.classList.remove('show'); }
 });
-document.querySelector('.install-close').addEventListener('click',()=>document.getElementById('installBanner').classList.remove('show'));
+document.querySelector('.install-close')?.addEventListener('click',()=>document.getElementById('installBanner')?.classList.remove('show'));
 window.addEventListener('appinstalled',()=>{document.getElementById('installBanner').classList.remove('show');deferredPrompt=null;});
 if(isIOS&&!isStandalone) setTimeout(()=>document.getElementById('installBanner').classList.add('show'),3000);
 
