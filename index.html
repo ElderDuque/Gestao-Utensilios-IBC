@@ -1981,15 +1981,13 @@ function alterarPortas(delta) {
 function gerarPosicoesPortas(btn) {
   const qtd = Number(document.getElementById('movelQtdPortas').value) || 2;
   const divs = document.getElementById('movelDivisoriasPorPorta').value
-    .split('
-').map(s => s.trim()).filter(Boolean);
+    .split('\n').map(s => s.trim()).filter(Boolean);
   if (!divs.length) { alert('Informe ao menos uma divisória!'); return; }
   const linhas = [];
   for (let p = 1; p <= qtd; p++) {
     divs.forEach(d => linhas.push(`Porta nº ${p} > ${d}`));
   }
-  document.getElementById('movelPosicoes').value = linhas.join('
-');
+  document.getElementById('movelPosicoes').value = linhas.join('\n');
   // Feedback visual
   if (!btn) return;
   btn.textContent = '✅ Posições geradas!';
