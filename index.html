@@ -652,6 +652,8 @@ tr:hover td{background:rgba(255,255,255,0.02)}
         <option value="estante">Estante/Prateleira</option>
         <option value="gaveta">Gaveteiro</option>
         <option value="caixa">Caixa/Baú</option>
+        <option value="grade">Grade Organizadora</option>
+        <option value="caixaorg">Caixa Organizadora</option>
         <option value="outro">Outro</option>
       </select>
     </div>
@@ -688,6 +690,42 @@ Prateleira do meio
 Prateleira inferior
 Topo</textarea>
           <button type="button" onclick="gerarPosicoesPortas(this)"
+            style="margin-top:10px;width:100%;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.3);color:var(--gold-light);border-radius:10px;padding:9px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">
+            ✨ Gerar posições automaticamente
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dentro (grade/caixa organizadora) -->
+    <div id="wrap-dentro" style="display:none;margin-bottom:14px">
+      <div style="background:rgba(201,168,76,0.06);border:1px solid var(--border);border-radius:14px;padding:14px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+          <input type="checkbox" id="movelTemDentro" onchange="toggleDentro()"
+            style="width:18px;height:18px;accent-color:var(--gold);cursor:pointer">
+          <label for="movelTemDentro" style="font-size:13px;font-weight:700;color:var(--gold-light);cursor:pointer;margin:0">
+            📦 Possui compartimentos internos?
+          </label>
+        </div>
+        <div id="wrap-qtd-dentro" style="display:none">
+          <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Quantos compartimentos?</div>
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+            <button type="button" onclick="alterarDentro(-1)"
+              style="background:rgba(255,255,255,0.08);border:1px solid var(--border);color:#fff;border-radius:8px;width:36px;height:36px;font-size:18px;cursor:pointer;font-family:inherit">−</button>
+            <span id="qtdDentroDisplay"
+              style="font-size:22px;font-weight:700;color:var(--gold-light);min-width:32px;text-align:center">4</span>
+            <button type="button" onclick="alterarDentro(1)"
+              style="background:rgba(255,255,255,0.08);border:1px solid var(--border);color:#fff;border-radius:8px;width:36px;height:36px;font-size:18px;cursor:pointer;font-family:inherit">+</button>
+            <input type="hidden" id="movelQtdDentro" value="4">
+          </div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Nome dos compartimentos (um por linha):</div>
+          <textarea id="movelNomesDentro" rows="4"
+            style="width:100%;padding:10px 14px;background:rgba(255,255,255,0.07);border:1px solid var(--border);border-radius:10px;color:#fff;font-size:13px;resize:vertical"
+            placeholder="Compartimento 1&#10;Compartimento 2&#10;Compartimento 3&#10;Compartimento 4">Compartimento 1
+Compartimento 2
+Compartimento 3
+Compartimento 4</textarea>
+          <button type="button" onclick="gerarPosicoesDentro(this)"
             style="margin-top:10px;width:100%;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.3);color:var(--gold-light);border-radius:10px;padding:9px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">
             ✨ Gerar posições automaticamente
           </button>
@@ -1260,7 +1298,7 @@ async function forceSyncFromFirebase() {
 }
 
 const catEmoji = {Panela:'🍳',Prato:'🍽️',Copo:'🥤',Tigela:'🥣',Talheres:'🥄',Outro:'📦'};
-const movelEmoji = {armário:'🗄️',geladeira:'🧊',estante:'📚',gaveta:'🗃️',caixa:'📦',outro:'🏷️'};
+const movelEmoji = {armário:'🗄️',geladeira:'🧊',estante:'📚',gaveta:'🗃️',caixa:'📦',grade:'🪜',caixaorg:'🗂️',outro:'🏷️'};
 
 let modoBusca = 'item';
 let navAmbienteId = null;
@@ -1895,9 +1933,10 @@ function excluirAmbiente(id) {
 
 function onMovelTipoChange() {
   const tipo = document.getElementById('movelTipo').value;
-  const wrapPortas = document.getElementById('wrap-portas');
   // Mostra seção de portas só para armário e gaveteiro
-  wrapPortas.style.display = (tipo === 'armário' || tipo === 'gaveta') ? 'block' : 'none';
+  document.getElementById('wrap-portas').style.display = (tipo === 'armário' || tipo === 'gaveta') ? 'block' : 'none';
+  // Mostra seção "dentro" para grade e caixa organizadora
+  document.getElementById('wrap-dentro').style.display = (tipo === 'grade' || tipo === 'caixaorg') ? 'block' : 'none';
 }
 
 function togglePortas() {
@@ -1937,6 +1976,49 @@ function gerarPosicoesPortas(btn) {
   }
 }
 
+function toggleDentro() {
+  const tem = document.getElementById('movelTemDentro').checked;
+  document.getElementById('wrap-qtd-dentro').style.display = tem ? 'block' : 'none';
+}
+
+function alterarDentro(delta) {
+  const input = document.getElementById('movelQtdDentro');
+  const novo = Math.max(1, Math.min(50, Number(input.value) + delta));
+  input.value = novo;
+  document.getElementById('qtdDentroDisplay').textContent = novo;
+  // Atualiza textarea com nomes padrão se ainda estiver com padrão
+  const ta = document.getElementById('movelNomesDentro');
+  const linhasAtuais = ta.value.split('\n').map(s => s.trim()).filter(Boolean);
+  const isPadrao = linhasAtuais.every((l, i) => l === `Compartimento ${i + 1}`);
+  if (isPadrao || !linhasAtuais.length) {
+    ta.value = Array.from({length: novo}, (_, i) => `Compartimento ${i + 1}`).join('\n');
+  }
+}
+
+function gerarPosicoesDentro(btn) {
+  const qtd = Number(document.getElementById('movelQtdDentro').value) || 4;
+  const nomes = document.getElementById('movelNomesDentro').value
+    .split('\n').map(s => s.trim()).filter(Boolean);
+  // Se não tem nomes suficientes, completa com padrão
+  const linhas = [];
+  for (let c = 1; c <= qtd; c++) {
+    linhas.push(nomes[c - 1] || `Compartimento ${c}`);
+  }
+  document.getElementById('movelPosicoes').value = linhas.join('\n');
+  if (btn) {
+    btn.textContent = '✅ Posições geradas!';
+    btn.style.background = 'rgba(76,175,122,0.2)';
+    btn.style.borderColor = 'rgba(76,175,122,0.4)';
+    btn.style.color = '#4caf7a';
+    setTimeout(() => {
+      btn.textContent = '✨ Gerar posições automaticamente';
+      btn.style.background = 'rgba(201,168,76,0.15)';
+      btn.style.borderColor = 'rgba(201,168,76,0.3)';
+      btn.style.color = 'var(--gold-light)';
+    }, 2000);
+  }
+}
+
 // ═══════════════════════════════════════════
 // MODAL MÓVEL
 // ═══════════════════════════════════════════
@@ -1957,7 +2039,13 @@ function abrirModalMovel(ambId, id) {
   document.getElementById('qtdPortasDisplay').textContent = '2';
   document.getElementById('movelDivisoriasPorPorta').value = 'Prateleira superior\nPrateleira do meio\nPrateleira inferior\nTopo';
   document.getElementById('wrap-qtd-portas').style.display = 'none';
-  onMovelTipoChange(); // exibe wrap-portas só se tipo for armário/gaveteiro
+  // Reset dentro
+  document.getElementById('movelTemDentro').checked = false;
+  document.getElementById('movelQtdDentro').value = '4';
+  document.getElementById('qtdDentroDisplay').textContent = '4';
+  document.getElementById('movelNomesDentro').value = 'Compartimento 1\nCompartimento 2\nCompartimento 3\nCompartimento 4';
+  document.getElementById('wrap-qtd-dentro').style.display = 'none';
+  onMovelTipoChange(); // exibe seções corretas conforme tipo
   if (id) {
     const m = data.moveis.find(x=>x.id===id);
     if (m) {
@@ -1980,6 +2068,14 @@ function abrirModalMovel(ambId, id) {
         document.getElementById('qtdPortasDisplay').textContent = m.portas;
         document.getElementById('movelDivisoriasPorPorta').value = (m.divisoriasPorPorta||[]).join('\n') || 'Prateleira superior\nPrateleira do meio\nPrateleira inferior\nTopo';
         document.getElementById('wrap-qtd-portas').style.display = 'block';
+      }
+      // Restaura estado dos compartimentos internos
+      if (m.qtdDentro && m.qtdDentro > 0) {
+        document.getElementById('movelTemDentro').checked = true;
+        document.getElementById('movelQtdDentro').value = m.qtdDentro;
+        document.getElementById('qtdDentroDisplay').textContent = m.qtdDentro;
+        document.getElementById('movelNomesDentro').value = (m.nomesDentro||[]).join('\n') || Array.from({length: m.qtdDentro}, (_, i) => `Compartimento ${i+1}`).join('\n');
+        document.getElementById('wrap-qtd-dentro').style.display = 'block';
       }
     }
   }
@@ -2004,9 +2100,14 @@ function salvarMovel() {
     const divisoriasPorPorta = temPortas
       ? document.getElementById('movelDivisoriasPorPorta').value.split('\n').map(s=>s.trim()).filter(Boolean)
       : [];
+    const temDentro = document.getElementById('movelTemDentro').checked;
+    const qtdDentro = temDentro ? Number(document.getElementById('movelQtdDentro').value) : 0;
+    const nomesDentro = temDentro
+      ? document.getElementById('movelNomesDentro').value.split('\n').map(s=>s.trim()).filter(Boolean)
+      : [];
     const obj = { nome, tipo:document.getElementById('movelTipo').value,
       cor:document.getElementById('movelCor').value.trim(), posicoes, ambId, foto, fotos,
-      portas, divisoriasPorPorta };
+      portas, divisoriasPorPorta, qtdDentro, nomesDentro };
     if (id) {
       const i = data.moveis.findIndex(m=>m.id===id);
       if (i >= 0) data.moveis[i] = {...data.moveis[i],...obj};
