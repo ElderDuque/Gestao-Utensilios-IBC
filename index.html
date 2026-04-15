@@ -688,7 +688,7 @@ tr:hover td{background:rgba(255,255,255,0.02)}
 Prateleira do meio
 Prateleira inferior
 Topo</textarea>
-          <button type="button" onclick="gerarPosicoesPortas()"
+          <button type="button" onclick="gerarPosicoesPortas(this)"
             style="margin-top:10px;width:100%;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.3);color:var(--gold-light);border-radius:10px;padding:9px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">
             ✨ Gerar posições automaticamente
           </button>
@@ -1978,7 +1978,7 @@ function alterarPortas(delta) {
   document.getElementById('qtdPortasDisplay').textContent = novo;
 }
 
-function gerarPosicoesPortas() {
+function gerarPosicoesPortas(btn) {
   const qtd = Number(document.getElementById('movelQtdPortas').value) || 2;
   const divs = document.getElementById('movelDivisoriasPorPorta').value
     .split('
@@ -1991,7 +1991,7 @@ function gerarPosicoesPortas() {
   document.getElementById('movelPosicoes').value = linhas.join('
 ');
   // Feedback visual
-  const btn = event.target;
+  if (!btn) return;
   btn.textContent = '✅ Posições geradas!';
   btn.style.background = 'rgba(76,175,122,0.2)';
   btn.style.borderColor = 'rgba(76,175,122,0.4)';
@@ -2024,7 +2024,7 @@ function abrirModalMovel(ambId, id) {
   document.getElementById('qtdPortasDisplay').textContent = '2';
   document.getElementById('movelDivisoriasPorPorta').value = 'Prateleira superior\nPrateleira do meio\nPrateleira inferior\nTopo';
   document.getElementById('wrap-qtd-portas').style.display = 'none';
-  document.getElementById('wrap-portas').style.display = 'block'; // armário é o padrão
+  onMovelTipoChange(); // exibe wrap-portas só se tipo for armário/gaveteiro
   if (id) {
     const m = data.moveis.find(x=>x.id===id);
     if (m) {
