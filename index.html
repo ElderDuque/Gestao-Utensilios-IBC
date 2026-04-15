@@ -652,8 +652,7 @@ tr:hover td{background:rgba(255,255,255,0.02)}
         <option value="estante">Estante/Prateleira</option>
         <option value="gaveta">Gaveteiro</option>
         <option value="caixa">Caixa/Baú</option>
-        <option value="grade">Grade Organizadora</option>
-        <option value="caixaorg">Caixa Organizadora</option>
+        <option value="organizador">Caixa Organizadora / Grade</option>
         <option value="outro">Outro</option>
       </select>
     </div>
@@ -689,43 +688,7 @@ tr:hover td{background:rgba(255,255,255,0.02)}
 Prateleira do meio
 Prateleira inferior
 Topo</textarea>
-          <button type="button" onclick="gerarPosicoesPortas(this)"
-            style="margin-top:10px;width:100%;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.3);color:var(--gold-light);border-radius:10px;padding:9px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">
-            ✨ Gerar posições automaticamente
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Dentro (grade/caixa organizadora) -->
-    <div id="wrap-dentro" style="display:none;margin-bottom:14px">
-      <div style="background:rgba(201,168,76,0.06);border:1px solid var(--border);border-radius:14px;padding:14px">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
-          <input type="checkbox" id="movelTemDentro" onchange="toggleDentro()"
-            style="width:18px;height:18px;accent-color:var(--gold);cursor:pointer">
-          <label for="movelTemDentro" style="font-size:13px;font-weight:700;color:var(--gold-light);cursor:pointer;margin:0">
-            📦 Possui compartimentos internos?
-          </label>
-        </div>
-        <div id="wrap-qtd-dentro" style="display:none">
-          <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Quantos compartimentos?</div>
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
-            <button type="button" onclick="alterarDentro(-1)"
-              style="background:rgba(255,255,255,0.08);border:1px solid var(--border);color:#fff;border-radius:8px;width:36px;height:36px;font-size:18px;cursor:pointer;font-family:inherit">−</button>
-            <span id="qtdDentroDisplay"
-              style="font-size:22px;font-weight:700;color:var(--gold-light);min-width:32px;text-align:center">4</span>
-            <button type="button" onclick="alterarDentro(1)"
-              style="background:rgba(255,255,255,0.08);border:1px solid var(--border);color:#fff;border-radius:8px;width:36px;height:36px;font-size:18px;cursor:pointer;font-family:inherit">+</button>
-            <input type="hidden" id="movelQtdDentro" value="4">
-          </div>
-          <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Nome dos compartimentos (um por linha):</div>
-          <textarea id="movelNomesDentro" rows="4"
-            style="width:100%;padding:10px 14px;background:rgba(255,255,255,0.07);border:1px solid var(--border);border-radius:10px;color:#fff;font-size:13px;resize:vertical"
-            placeholder="Compartimento 1&#10;Compartimento 2&#10;Compartimento 3&#10;Compartimento 4">Compartimento 1
-Compartimento 2
-Compartimento 3
-Compartimento 4</textarea>
-          <button type="button" onclick="gerarPosicoesDentro(this)"
+          <button type="button" onclick="gerarPosicoesPortas()"
             style="margin-top:10px;width:100%;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.3);color:var(--gold-light);border-radius:10px;padding:9px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">
             ✨ Gerar posições automaticamente
           </button>
@@ -830,16 +793,61 @@ Compartimento 4</textarea>
     <div class="form-row">
       <div class="form-group">
         <label>Categoria</label>
-        <select id="itemCat">
+        <select id="itemCat" onchange="onCatChange()">
           <option>Panela</option><option>Prato</option><option>Copo</option>
-          <option>Tigela</option><option>Talheres</option><option>Outro</option>
+          <option>Tigela</option><option>Talheres</option>
+          <option>Descartáveis</option>
+          <option>Outro</option>
         </select>
       </div>
       <div class="form-group">
-        <label>Quantidade</label>
+        <label>Quantidade <span id="lblQtd" style="color:var(--muted);font-size:11px">(unidades)</span></label>
         <input type="number" id="itemQtd" min="0" placeholder="0">
       </div>
     </div>
+
+    <!-- Embalagens (só para Descartáveis) -->
+    <div id="wrap-embalagens" style="display:none;margin-bottom:14px">
+      <div style="background:rgba(201,168,76,0.06);border:1px dashed rgba(201,168,76,0.3);border-radius:14px;padding:14px">
+        <div style="font-size:12px;font-weight:700;color:var(--gold-light);letter-spacing:.5px;text-transform:uppercase;margin-bottom:12px">
+          📦 Embalagens
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+          <div>
+            <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:5px">Nº de embalagens</label>
+            <input type="number" id="embQtd" min="0" placeholder="0" oninput="calcularTotalEmb()"
+              style="width:100%;padding:10px 14px;background:rgba(255,255,255,0.07);border:1px solid var(--border);border-radius:10px;color:#fff;font-size:16px;font-weight:700;text-align:center">
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:5px">Unidades por embalagem</label>
+            <select id="embTamanho" onchange="calcularTotalEmb()"
+              style="width:100%;padding:10px 14px;background:rgba(255,255,255,0.07);border:1px solid var(--border);border-radius:10px;color:#fff;font-size:14px">
+              <option value="25">25 un.</option>
+              <option value="50" selected>50 un.</option>
+              <option value="100">100 un.</option>
+              <option value="150">150 un.</option>
+              <option value="200">200 un.</option>
+              <option value="outro">Outro...</option>
+            </select>
+          </div>
+        </div>
+        <!-- Tamanho personalizado -->
+        <div id="wrap-emb-outro" style="display:none;margin-bottom:12px">
+          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:5px">Qtd por embalagem (personalizado)</label>
+          <input type="number" id="embTamanhoCustom" min="1" placeholder="Ex: 80" oninput="calcularTotalEmb()"
+            style="width:100%;padding:10px 14px;background:rgba(255,255,255,0.07);border:1px solid var(--border);border-radius:10px;color:#fff;font-size:14px">
+        </div>
+        <!-- Total calculado -->
+        <div id="emb-total-display" style="background:rgba(201,168,76,0.12);border-radius:10px;padding:10px 14px;text-align:center;display:none">
+          <span style="font-size:12px;color:var(--muted)">Total calculado: </span>
+          <span id="emb-total-valor" style="font-size:18px;font-weight:700;color:var(--gold-light)">0 un.</span>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:8px;text-align:center">
+          O campo "Quantidade" acima será preenchido automaticamente com o total
+        </div>
+      </div>
+    </div>
+
     <div class="form-group">
       <label>Qtd Mínima (alerta)</label>
       <input type="number" id="itemQtdMin" min="0" placeholder="0">
@@ -889,9 +897,28 @@ Compartimento 4</textarea>
       </div>
       <div class="form-group" id="wrap-posicao" style="display:none;margin-bottom:10px">
         <label>📦 Posição</label>
-        <select id="itemPosicao">
+        <select id="itemPosicao" onchange="atualizarCaixas()">
           <option value="">— Selecionar posição —</option>
         </select>
+      </div>
+
+      <!-- Caixa/Organizador dentro da posição (opcional) -->
+      <div id="wrap-caixa" style="display:none;margin-bottom:10px">
+        <div style="background:rgba(201,168,76,0.06);border:1px dashed rgba(201,168,76,0.25);border-radius:12px;padding:12px">
+          <label style="font-size:12px;font-weight:700;color:var(--gold-light);display:block;margin-bottom:8px">
+            📦 Caixa / Organizador nessa posição <span style="color:var(--muted);font-weight:400">(opcional)</span>
+          </label>
+          <select id="itemCaixaId" onchange="atualizarPosicaoCaixa()" style="width:100%;padding:10px 14px;background:rgba(255,255,255,0.07);border:1px solid var(--border);border-radius:10px;color:#fff;font-size:14px">
+            <option value="">— Nenhuma caixa —</option>
+          </select>
+          <!-- Posição dentro da caixa -->
+          <div id="wrap-posicao-caixa" style="display:none;margin-top:10px">
+            <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px">Posição dentro da caixa</label>
+            <select id="itemPosicaoCaixa" style="width:100%;padding:10px 14px;background:rgba(255,255,255,0.07);border:1px solid var(--border);border-radius:10px;color:#fff;font-size:14px">
+              <option value="">— Selecionar posição —</option>
+            </select>
+          </div>
+        </div>
       </div>
 
       <div class="form-group" style="margin-bottom:0">
@@ -1298,7 +1325,7 @@ async function forceSyncFromFirebase() {
 }
 
 const catEmoji = {Panela:'🍳',Prato:'🍽️',Copo:'🥤',Tigela:'🥣',Talheres:'🥄',Outro:'📦'};
-const movelEmoji = {armário:'🗄️',geladeira:'🧊',estante:'📚',gaveta:'🗃️',caixa:'📦',grade:'🪜',caixaorg:'🗂️',outro:'🏷️'};
+const movelEmoji = {armário:'🗄️',geladeira:'🧊',estante:'📚',gaveta:'🗃️',caixa:'📦',organizador:'🗂️',outro:'🏷️'};
 
 let modoBusca = 'item';
 let navAmbienteId = null;
@@ -1496,7 +1523,8 @@ function executarBusca() {
     div.innerHTML = '<div class="busca-resultados">' + items.map(item => {
       const amb = item.ambId ? data.ambientes.find(a=>a.id===item.ambId) : null;
       const mov = item.movelId ? data.moveis.find(m=>m.id===item.movelId) : null;
-      const loc = [amb&&amb.nome, mov&&mov.nome, item.posicao, item.locObs].filter(Boolean).join(' › ');
+      const caixa1 = item.caixaId ? data.moveis.find(m=>m.id===item.caixaId) : null;
+      const loc = [amb&&amb.nome, mov&&mov.nome, item.posicao, caixa1&&('📦 '+caixa1.nome), item.posicaoCaixa, item.locObs].filter(Boolean).join(' › ');
       const fotoHtml = item.foto
         ? `<div class="result-card-foto"><img src="${item.foto}" alt="${item.nome}"></div>`
         : `<div class="result-card-foto">${catEmoji[item.cat]||'📦'}</div>`;
@@ -1505,7 +1533,7 @@ function executarBusca() {
         <div class="result-card-info">
           <div class="result-card-nome">${item.nome}</div>
           <div class="result-card-sub">${loc||item.cat}</div>
-          <div class="result-card-qtd">Qtd: ${item.qtd}</div>
+          <div class="result-card-qtd">${item.cat==='Descartáveis'&&item.embQtd?`${item.embQtd} pct × ${item.embTamanho} = ${item.qtd} un.`:`Qtd: ${item.qtd}`}</div>
         </div>
       </div>`;
     }).join('') + '</div>';
@@ -1619,7 +1647,7 @@ function abrirAmbiente(id) {
         <div class="movel-info">
           <div class="movel-nome">${it.nome}</div>
           <div class="movel-sub">${catEmoji[it.cat]||'📦'} ${it.cat||''}</div>
-          <div class="movel-count" style="color:${qtdCor}">${qtd} un.</div>
+          <div class="movel-count" style="color:${qtdCor}">${it.cat==='Descartáveis'&&it.embQtd?`${it.embQtd}pct×${it.embTamanho}=${qtd}un.`:`${qtd} un.`}</div>
           <div style="display:flex;gap:4px;margin-top:6px">
             <button onclick="event.stopPropagation();editarItem('${it.id}')" class="btn btn-ghost btn-sm" style="flex:1;font-size:11px;padding:4px 6px">✏️</button>
             <button onclick="event.stopPropagation();excluirItem('${it.id}')" class="btn btn-red btn-sm" style="font-size:11px;padding:4px 6px">🗑️</button>
@@ -1801,7 +1829,7 @@ function itemTagCard(it) {
     ${fotoHtml}
     <div>
       <div class="posicao-item-nome">${it.nome}</div>
-      <div class="posicao-item-qtd">${it.qtd} un.</div>
+      <div class="posicao-item-qtd">${it.cat==='Descartáveis'&&it.embQtd?`${it.embQtd}×${it.embTamanho}=${it.qtd}un.`:`${it.qtd} un.`}</div>
     </div>
   </div>`;
 }
@@ -1933,10 +1961,9 @@ function excluirAmbiente(id) {
 
 function onMovelTipoChange() {
   const tipo = document.getElementById('movelTipo').value;
+  const wrapPortas = document.getElementById('wrap-portas');
   // Mostra seção de portas só para armário e gaveteiro
-  document.getElementById('wrap-portas').style.display = (tipo === 'armário' || tipo === 'gaveta') ? 'block' : 'none';
-  // Mostra seção "dentro" para grade e caixa organizadora
-  document.getElementById('wrap-dentro').style.display = (tipo === 'grade' || tipo === 'caixaorg') ? 'block' : 'none';
+  wrapPortas.style.display = (tipo === 'armário' || tipo === 'gaveta') ? 'block' : 'none';
 }
 
 function togglePortas() {
@@ -1951,72 +1978,30 @@ function alterarPortas(delta) {
   document.getElementById('qtdPortasDisplay').textContent = novo;
 }
 
-function gerarPosicoesPortas(btn) {
+function gerarPosicoesPortas() {
   const qtd = Number(document.getElementById('movelQtdPortas').value) || 2;
   const divs = document.getElementById('movelDivisoriasPorPorta').value
-    .split('\n').map(s => s.trim()).filter(Boolean);
+    .split('
+').map(s => s.trim()).filter(Boolean);
   if (!divs.length) { alert('Informe ao menos uma divisória!'); return; }
   const linhas = [];
   for (let p = 1; p <= qtd; p++) {
     divs.forEach(d => linhas.push(`Porta nº ${p} > ${d}`));
   }
-  document.getElementById('movelPosicoes').value = linhas.join('\n');
+  document.getElementById('movelPosicoes').value = linhas.join('
+');
   // Feedback visual
-  if (btn) {
-    btn.textContent = '✅ Posições geradas!';
-    btn.style.background = 'rgba(76,175,122,0.2)';
-    btn.style.borderColor = 'rgba(76,175,122,0.4)';
-    btn.style.color = '#4caf7a';
-    setTimeout(() => {
-      btn.textContent = '✨ Gerar posições automaticamente';
-      btn.style.background = 'rgba(201,168,76,0.15)';
-      btn.style.borderColor = 'rgba(201,168,76,0.3)';
-      btn.style.color = 'var(--gold-light)';
-    }, 2000);
-  }
-}
-
-function toggleDentro() {
-  const tem = document.getElementById('movelTemDentro').checked;
-  document.getElementById('wrap-qtd-dentro').style.display = tem ? 'block' : 'none';
-}
-
-function alterarDentro(delta) {
-  const input = document.getElementById('movelQtdDentro');
-  const novo = Math.max(1, Math.min(50, Number(input.value) + delta));
-  input.value = novo;
-  document.getElementById('qtdDentroDisplay').textContent = novo;
-  // Atualiza textarea com nomes padrão se ainda estiver com padrão
-  const ta = document.getElementById('movelNomesDentro');
-  const linhasAtuais = ta.value.split('\n').map(s => s.trim()).filter(Boolean);
-  const isPadrao = linhasAtuais.every((l, i) => l === `Compartimento ${i + 1}`);
-  if (isPadrao || !linhasAtuais.length) {
-    ta.value = Array.from({length: novo}, (_, i) => `Compartimento ${i + 1}`).join('\n');
-  }
-}
-
-function gerarPosicoesDentro(btn) {
-  const qtd = Number(document.getElementById('movelQtdDentro').value) || 4;
-  const nomes = document.getElementById('movelNomesDentro').value
-    .split('\n').map(s => s.trim()).filter(Boolean);
-  // Se não tem nomes suficientes, completa com padrão
-  const linhas = [];
-  for (let c = 1; c <= qtd; c++) {
-    linhas.push(nomes[c - 1] || `Compartimento ${c}`);
-  }
-  document.getElementById('movelPosicoes').value = linhas.join('\n');
-  if (btn) {
-    btn.textContent = '✅ Posições geradas!';
-    btn.style.background = 'rgba(76,175,122,0.2)';
-    btn.style.borderColor = 'rgba(76,175,122,0.4)';
-    btn.style.color = '#4caf7a';
-    setTimeout(() => {
-      btn.textContent = '✨ Gerar posições automaticamente';
-      btn.style.background = 'rgba(201,168,76,0.15)';
-      btn.style.borderColor = 'rgba(201,168,76,0.3)';
-      btn.style.color = 'var(--gold-light)';
-    }, 2000);
-  }
+  const btn = event.target;
+  btn.textContent = '✅ Posições geradas!';
+  btn.style.background = 'rgba(76,175,122,0.2)';
+  btn.style.borderColor = 'rgba(76,175,122,0.4)';
+  btn.style.color = '#4caf7a';
+  setTimeout(() => {
+    btn.textContent = '✨ Gerar posições automaticamente';
+    btn.style.background = 'rgba(201,168,76,0.15)';
+    btn.style.borderColor = 'rgba(201,168,76,0.3)';
+    btn.style.color = 'var(--gold-light)';
+  }, 2000);
 }
 
 // ═══════════════════════════════════════════
@@ -2039,13 +2024,7 @@ function abrirModalMovel(ambId, id) {
   document.getElementById('qtdPortasDisplay').textContent = '2';
   document.getElementById('movelDivisoriasPorPorta').value = 'Prateleira superior\nPrateleira do meio\nPrateleira inferior\nTopo';
   document.getElementById('wrap-qtd-portas').style.display = 'none';
-  // Reset dentro
-  document.getElementById('movelTemDentro').checked = false;
-  document.getElementById('movelQtdDentro').value = '4';
-  document.getElementById('qtdDentroDisplay').textContent = '4';
-  document.getElementById('movelNomesDentro').value = 'Compartimento 1\nCompartimento 2\nCompartimento 3\nCompartimento 4';
-  document.getElementById('wrap-qtd-dentro').style.display = 'none';
-  onMovelTipoChange(); // exibe seções corretas conforme tipo
+  document.getElementById('wrap-portas').style.display = 'block'; // armário é o padrão
   if (id) {
     const m = data.moveis.find(x=>x.id===id);
     if (m) {
@@ -2068,14 +2047,6 @@ function abrirModalMovel(ambId, id) {
         document.getElementById('qtdPortasDisplay').textContent = m.portas;
         document.getElementById('movelDivisoriasPorPorta').value = (m.divisoriasPorPorta||[]).join('\n') || 'Prateleira superior\nPrateleira do meio\nPrateleira inferior\nTopo';
         document.getElementById('wrap-qtd-portas').style.display = 'block';
-      }
-      // Restaura estado dos compartimentos internos
-      if (m.qtdDentro && m.qtdDentro > 0) {
-        document.getElementById('movelTemDentro').checked = true;
-        document.getElementById('movelQtdDentro').value = m.qtdDentro;
-        document.getElementById('qtdDentroDisplay').textContent = m.qtdDentro;
-        document.getElementById('movelNomesDentro').value = (m.nomesDentro||[]).join('\n') || Array.from({length: m.qtdDentro}, (_, i) => `Compartimento ${i+1}`).join('\n');
-        document.getElementById('wrap-qtd-dentro').style.display = 'block';
       }
     }
   }
@@ -2100,14 +2071,9 @@ function salvarMovel() {
     const divisoriasPorPorta = temPortas
       ? document.getElementById('movelDivisoriasPorPorta').value.split('\n').map(s=>s.trim()).filter(Boolean)
       : [];
-    const temDentro = document.getElementById('movelTemDentro').checked;
-    const qtdDentro = temDentro ? Number(document.getElementById('movelQtdDentro').value) : 0;
-    const nomesDentro = temDentro
-      ? document.getElementById('movelNomesDentro').value.split('\n').map(s=>s.trim()).filter(Boolean)
-      : [];
     const obj = { nome, tipo:document.getElementById('movelTipo').value,
       cor:document.getElementById('movelCor').value.trim(), posicoes, ambId, foto, fotos,
-      portas, divisoriasPorPorta, qtdDentro, nomesDentro };
+      portas, divisoriasPorPorta };
     if (id) {
       const i = data.moveis.findIndex(m=>m.id===id);
       if (i >= 0) data.moveis[i] = {...data.moveis[i],...obj};
@@ -2180,6 +2146,10 @@ function setLocTipo(tipo) {
   // Limpa seleções ao trocar tipo
   if (tipo !== 'movel') {
     document.getElementById('itemMovelId').value = '';
+  document.getElementById('itemCaixaId').value = '';
+  document.getElementById('itemPosicaoCaixa').value = '';
+  document.getElementById('wrap-caixa').style.display = 'none';
+  document.getElementById('wrap-posicao-caixa').style.display = 'none';
     document.getElementById('itemPosicao').value = '';
   }
   if (tipo === 'avulso') {
@@ -2194,6 +2164,7 @@ function abrirModalItem(ambId, movelId, montado) {
   document.getElementById('itemQtd').value='0';
   document.getElementById('itemQtdMin').value='0';
   document.getElementById('itemCat').value='Panela';
+  resetEmbalagens();
   document.getElementById('editItemId').value='';
   document.getElementById('tituloModalItem').textContent = '＋ Novo Item';
   resetFoto('itemFotoPreview','itemFotoPlaceholder');
@@ -2225,6 +2196,21 @@ function editarItem(id) {
   document.getElementById('editItemId').value=id;
   document.getElementById('itemNome').value=item.nome;
   document.getElementById('itemCat').value=item.cat||'Outro';
+  resetEmbalagens();
+  if (item.cat === 'Descartáveis' && item.embQtd) {
+    document.getElementById('wrap-embalagens').style.display = 'block';
+    document.getElementById('lblQtd').textContent = '(total — preenchido pelas embalagens)';
+    document.getElementById('embQtd').value = item.embQtd;
+    const tamanhoOpts = ['25','50','100','150','200'];
+    if (tamanhoOpts.includes(String(item.embTamanho))) {
+      document.getElementById('embTamanho').value = String(item.embTamanho);
+    } else {
+      document.getElementById('embTamanho').value = 'outro';
+      document.getElementById('embTamanhoCustom').value = item.embTamanho;
+      document.getElementById('wrap-emb-outro').style.display = 'block';
+    }
+    calcularTotalEmb();
+  }
   document.getElementById('itemQtd').value=item.qtd;
   document.getElementById('itemQtdMin').value=item.qtdMin||0;
   document.getElementById('itemDesc').value=item.desc||'';
@@ -2249,7 +2235,17 @@ function editarItem(id) {
     atualizarMoveis();
     setTimeout(()=>{
       if(item.movelId){document.getElementById('itemMovelId').value=item.movelId;atualizarPosicoes();}
-      setTimeout(()=>{if(item.posicao)document.getElementById('itemPosicao').value=item.posicao;},60);
+      setTimeout(()=>{
+        if(item.posicao) document.getElementById('itemPosicao').value=item.posicao;
+        atualizarCaixas();
+        if(item.caixaId){
+          setTimeout(()=>{
+            document.getElementById('itemCaixaId').value=item.caixaId;
+            atualizarPosicaoCaixa();
+            if(item.posicaoCaixa)setTimeout(()=>{document.getElementById('itemPosicaoCaixa').value=item.posicaoCaixa;},60);
+          },60);
+        }
+      },60);
     },60);
   }
   openModal('item');
@@ -2266,6 +2262,8 @@ function atualizarMoveis() {
     moveis.map(m=>`<option value="${m.id}">${movelEmoji[m.tipo]||'🗄️'} ${m.nome}</option>`).join('');
   wrap.style.display = moveis.length ? 'block' : 'none';
   document.getElementById('wrap-posicao').style.display='none';
+  document.getElementById('wrap-caixa').style.display='none';
+  document.getElementById('wrap-posicao-caixa').style.display='none';
 }
 
 function atualizarPosicoes() {
@@ -2278,6 +2276,84 @@ function atualizarPosicoes() {
   sel.innerHTML = '<option value="">— Selecionar posição —</option>' +
     mov.posicoes.map(p=>`<option value="${p}">${p}</option>`).join('');
   wrap.style.display = 'block';
+}
+
+function atualizarCaixas() {
+  const ambId = document.getElementById('itemAmbId').value;
+  const wrapCaixa = document.getElementById('wrap-caixa');
+  const selCaixa = document.getElementById('itemCaixaId');
+
+  // Lista todos os móveis do tipo caixa/baú do ambiente atual
+  const caixas = data.moveis.filter(m =>
+    m.ambId === ambId && (m.tipo === 'caixa' || m.tipo === 'organizador')
+  );
+
+  if (!caixas.length) {
+    wrapCaixa.style.display = 'none';
+    return;
+  }
+
+  selCaixa.innerHTML = '<option value="">— Nenhuma caixa —</option>' +
+    caixas.map(c => `<option value="${c.id}">${movelEmoji[c.tipo]||'📦'} ${c.nome}</option>`).join('');
+  wrapCaixa.style.display = 'block';
+  document.getElementById('wrap-posicao-caixa').style.display = 'none';
+}
+
+function atualizarPosicaoCaixa() {
+  const caixaId = document.getElementById('itemCaixaId').value;
+  const wrap = document.getElementById('wrap-posicao-caixa');
+  const sel = document.getElementById('itemPosicaoCaixa');
+  if (!caixaId) { wrap.style.display = 'none'; return; }
+  const caixa = data.moveis.find(m => m.id === caixaId);
+  if (!caixa || !caixa.posicoes || !caixa.posicoes.length) { wrap.style.display = 'none'; return; }
+  sel.innerHTML = '<option value="">— Selecionar posição —</option>' +
+    caixa.posicoes.map(p => `<option value="${p}">${p}</option>`).join('');
+  wrap.style.display = 'block';
+}
+
+// ── Embalagens (Descartáveis) ──────────────────────────────────────
+
+function onCatChange() {
+  const cat = document.getElementById('itemCat').value;
+  const wrap = document.getElementById('wrap-embalagens');
+  const lbl = document.getElementById('lblQtd');
+  if (cat === 'Descartáveis') {
+    wrap.style.display = 'block';
+    lbl.textContent = '(total — preenchido pelas embalagens)';
+    calcularTotalEmb();
+  } else {
+    wrap.style.display = 'none';
+    lbl.textContent = '(unidades)';
+  }
+}
+
+function calcularTotalEmb() {
+  const qtdEmb = Number(document.getElementById('embQtd').value) || 0;
+  const sel = document.getElementById('embTamanho').value;
+  const custom = Number(document.getElementById('embTamanhoCustom').value) || 0;
+  // Mostra/oculta campo personalizado
+  document.getElementById('wrap-emb-outro').style.display = sel === 'outro' ? 'block' : 'none';
+  const unsPorEmb = sel === 'outro' ? custom : Number(sel);
+  const total = qtdEmb * unsPorEmb;
+  const display = document.getElementById('emb-total-display');
+  const valorEl = document.getElementById('emb-total-valor');
+  if (qtdEmb > 0 && unsPorEmb > 0) {
+    valorEl.textContent = total + ' un.';
+    display.style.display = 'block';
+    document.getElementById('itemQtd').value = total;
+  } else {
+    display.style.display = 'none';
+  }
+}
+
+function resetEmbalagens() {
+  document.getElementById('embQtd').value = '';
+  document.getElementById('embTamanho').value = '50';
+  document.getElementById('embTamanhoCustom').value = '';
+  document.getElementById('wrap-emb-outro').style.display = 'none';
+  document.getElementById('emb-total-display').style.display = 'none';
+  document.getElementById('wrap-embalagens').style.display = 'none';
+  document.getElementById('lblQtd').textContent = '(unidades)';
 }
 
 function salvarItem() {
@@ -2300,12 +2376,27 @@ function salvarItem() {
   const ambId   = locTipo !== 'avulso' ? document.getElementById('itemAmbId').value : '';
   const movelId = locTipo === 'movel'  ? document.getElementById('itemMovelId').value : '';
   const posicao = locTipo === 'movel'  ? document.getElementById('itemPosicao').value : '';
+  const caixaId = locTipo === 'movel'  ? (document.getElementById('itemCaixaId').value || '') : '';
+  const posicaoCaixa = (locTipo === 'movel' && caixaId)
+    ? (document.getElementById('itemPosicaoCaixa').value || '') : '';
+
+  const cat = document.getElementById('itemCat').value;
+  // Dados de embalagem (só para Descartáveis)
+  let embQtd = 0, embTamanho = 0;
+  if (cat === 'Descartáveis') {
+    embQtd = Number(document.getElementById('embQtd').value) || 0;
+    const sel = document.getElementById('embTamanho').value;
+    embTamanho = sel === 'outro'
+      ? Number(document.getElementById('embTamanhoCustom').value) || 0
+      : Number(sel);
+  }
 
   const buildObj = (foto) => ({
-    nome, cat:document.getElementById('itemCat').value,
+    nome, cat,
     qtd:Number(qtd), qtdMin:Number(document.getElementById('itemQtdMin').value||0),
     desc:document.getElementById('itemDesc').value,
-    ambId, movelId, posicao, locTipo,
+    embQtd, embTamanho,
+    ambId, movelId, posicao, caixaId, posicaoCaixa, locTipo,
     locObs:document.getElementById('itemLocObs').value,
     validade:document.getElementById('itemValidade').value,
     tags:getTagsSelecionadas(), camposExtras:getCamposExtras(), foto
@@ -2388,14 +2479,15 @@ function renderItems() {
     const fotoHtml=item.foto?`<div class="item-img"><img src="${item.foto}" alt="${item.nome}"></div>`:`<div class="item-img">${catEmoji[item.cat]||'📦'}</div>`;
     const amb=item.ambId?data.ambientes.find(a=>a.id===item.ambId):null;
     const mov=item.movelId?data.moveis.find(m=>m.id===item.movelId):null;
-    const loc=[amb&&amb.nome,mov&&mov.nome,item.posicao].filter(Boolean).join(' › ');
+    const caixa2 = item.caixaId ? data.moveis.find(m=>m.id===item.caixaId) : null;
+    const loc=[amb&&amb.nome,mov&&mov.nome,item.posicao,caixa2&&('📦 '+caixa2.nome),item.posicaoCaixa].filter(Boolean).join(' › ');
     return `<div class="item-card">
       ${fotoHtml}
       <div class="item-body">
         <div class="item-name">${item.nome}</div>
         <div class="item-cat">${catEmoji[item.cat]||'📦'} ${item.cat}</div>
         ${loc?`<div class="item-loc">📍 ${loc}</div>`:''}
-        <div class="item-qty"><span class="qty-badge ${qC}">${qL}</span><strong>${qtd} un.</strong></div>
+        <div class="item-qty"><span class="qty-badge ${qC}">${qL}</span><strong>${item.cat==='Descartáveis'&&item.embQtd?`${item.embQtd} pct × ${item.embTamanho} = ${qtd} un.`:`${qtd} un.`}</strong></div>
         <div class="tags-wrap" style="margin-bottom:6px">
           ${(item.tags||[]).map(tid=>{const t=data.tags.find(x=>x.id===tid);return t?`<span class="tag-chip" style="background:${t.cor}22;border-color:${t.cor};color:${t.cor}">${t.emoji||''} ${t.nome}</span>`:''}).join('')}
         </div>
@@ -2432,7 +2524,8 @@ function verItem(id) {
   const qtdEmp=empsA.reduce((a,e)=>a+Number(e.qtd),0);
   const amb=item.ambId?data.ambientes.find(a=>a.id===item.ambId):null;
   const mov=item.movelId?data.moveis.find(m=>m.id===item.movelId):null;
-  const locParts=[amb&&amb.nome,mov&&mov.nome,item.posicao,item.locObs].filter(Boolean);
+  const caixa3 = item.caixaId ? data.moveis.find(m=>m.id===item.caixaId) : null;
+  const locParts=[amb&&amb.nome,mov&&mov.nome,item.posicao,caixa3&&('📦 '+caixa3.nome),item.posicaoCaixa,item.locObs].filter(Boolean);
 
   document.getElementById('verItemConteudo').innerHTML=`
     <h2>${item.nome}</h2>
