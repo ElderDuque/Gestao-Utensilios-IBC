@@ -1081,7 +1081,8 @@ function setFotoUploadStatus(msg, autoHideMs) {
   if (msg) {
     el.textContent = msg; el.style.display = 'block';
     if (autoHideMs > 0) _fotoStatusTimer = setTimeout(function() { el.style.display = 'none'; }, autoHideMs);
-  } else { el.style.display = 'none'; }
+  }
+  else { el.style.display = 'none'; }
 }
 
 // Faz upload de um base64 direto para o Firebase Storage e retorna a URL pública
@@ -1104,96 +1105,105 @@ async function deleteFoto(url) {
   } catch(e) { /* ignora se já não existe */ }
 }
 
-// Fila de uploads em background
-const _uploadQueue = [];
-let _uploading = false;
-
 // ── IndexedDB para fotos pendentes (sobrevive a fechamento do app) ──────────
 const _IDB_NAME = 'ibc-fotos-pendentes';
 const _IDB_STORE = 'uploads';
 
 function _abrirIDB() {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(_IDB_NAME, 1);
-    req.onupgradeneeded = e => e.target.result.createObjectStore(_IDB_STORE, { keyPath: 'storagePath' });
-    req.onsuccess = e => resolve(e.target.result);
-    req.onerror = () => reject(req.error);
+  return new Promise(function(resolve, reject) {
+    var req = indexedDB.open(_IDB_NAME, 1);
+    req.onupgradeneeded = function(e) { e.target.result.createObjectStore(_IDB_STORE, { keyPath: 'storagePath' }); };
+    req.onsuccess = function(e) { resolve(e.target.result); };
+    req.onerror = function() { reject(req.error); };
   });
 }
 
 async function _salvarFotoPendente(storagePath, blob) {
   try {
-    const db = await _abrirIDB();
-    const tx = db.transaction(_IDB_STORE, 'readwrite');
-    tx.objectStore(_IDB_STORE).put({ storagePath, blob, ts: Date.now() });
+    var db = await _abrirIDB();
+    var tx = db.transaction(_IDB_STORE, 'readwrite');
+    tx.objectStore(_IDB_STORE).put({ storagePath: storagePath, blob: blob, ts: Date.now() });
   } catch(e) { console.warn('IDB save error:', e); }
 }
 
 async function _removerFotoPendente(storagePath) {
   try {
-    const db = await _abrirIDB();
-    const tx = db.transaction(_IDB_STORE, 'readwrite');
+    var db = await _abrirIDB();
+    var tx = db.transaction(_IDB_STORE, 'readwrite');
     tx.objectStore(_IDB_STORE).delete(storagePath);
   } catch(e) {}
 }
 
 async function _listarFotosPendentes() {
   try {
-    const db = await _abrirIDB();
-    return await new Promise((resolve, reject) => {
-      const req = db.transaction(_IDB_STORE, 'readonly').objectStore(_IDB_STORE).getAll();
-      req.onsuccess = () => resolve(req.result || []);
-      req.onerror = () => resolve([]);
+    var db = await _abrirIDB();
+    return await new Promise(function(resolve) {
+      var req = db.transaction(_IDB_STORE, 'readonly').objectStore(_IDB_STORE).getAll();
+      req.onsuccess = function() { resolve(req.result || []); };
+      req.onerror = function() { resolve([]); };
     });
   } catch(e) { return []; }
 }
 
+// Tenta upload com retry (3 tentativas com backoff)
+async function _uploadComRetry(blob, storagePath, tentativas) {
+  tentativas = tentativas || 3;
+  for (var t = 1; t <= tentativas; t++) {
+    try {
+      var ref = storage.ref(storagePath);
+      await ref.put(blob, { contentType: 'image/jpeg' });
+      return await ref.getDownloadURL();
+    } catch(e) {
+      console.warn('Upload tentativa ' + t + '/' + tentativas + ' falhou (' + storagePath + '):', e.message || e);
+      if (t < tentativas) await new Promise(function(r) { setTimeout(r, 2000 * t); });
+    }
+  }
+  return null;
+}
+
 // Reenvia fotos que ficaram pendentes de sessões anteriores
 async function reenviarFotosPendentes() {
-  const pendentes = await _listarFotosPendentes();
+  var pendentes = await _listarFotosPendentes();
   if (!pendentes.length) return;
-  console.log(`🔄 Reenviando ${pendentes.length} foto(s) pendente(s)...`);
-  setFotoUploadStatus(`🔄 Reenviando ${pendentes.length} foto(s) pendente(s)...`);
-  for (const { storagePath, blob } of pendentes) {
+  console.log('Reenviando ' + pendentes.length + ' foto(s) pendente(s)...');
+  setFotoUploadStatus('🔄 Reenviando foto(s) pendente(s)...');
+  for (var i = 0; i < pendentes.length; i++) {
+    var p = pendentes[i];
     try {
-      const ref = storage.ref(storagePath);
-      await ref.put(blob, { contentType: 'image/jpeg' });
-      const url = await ref.getDownloadURL();
+      var url = await _uploadComRetry(p.blob, p.storagePath, 3);
       if (url) {
-        // Atualiza o dado no Firestore com a URL correta
-        const tipo = storagePath.split('/')[0]; // 'items', 'ambientes', 'moveis'
-        const id   = storagePath.split('/')[1];
-        let alterou = false;
+        var partes = p.storagePath.split('/');
+        var tipo = partes[0], id = partes[1], idxStr = partes[2];
+        var alterou = false;
         if (tipo === 'items') {
-          const item = data.items.find(i => i.id === id);
-          if (item && (!item.foto || item.foto.startsWith('data:') || item.foto === null)) {
-            item.foto = url; alterou = true;
-          }
+          var item = data.items.find(function(x) { return x.id === id; });
+          if (item && (!item.foto || item.foto === null)) { item.foto = url; alterou = true; }
         } else if (tipo === 'ambientes') {
-          const amb = data.ambientes.find(a => a.id === id);
-          if (amb && (!amb.foto || amb.foto.startsWith('data:') || amb.foto === null)) {
-            amb.foto = url; alterou = true;
-          }
+          var amb = data.ambientes.find(function(x) { return x.id === id; });
+          if (amb && (!amb.foto || amb.foto === null)) { amb.foto = url; alterou = true; }
         } else if (tipo === 'moveis') {
-          const idx = Number(storagePath.split('/')[2]) || 0;
-          const mov = data.moveis.find(m => m.id === id);
+          var idx = Number(idxStr) || 0;
+          var mov = data.moveis.find(function(x) { return x.id === id; });
           if (mov) {
             if (!mov.fotos) mov.fotos = [];
-            if (!mov.fotos[idx] || mov.fotos[idx].startsWith('data:') || mov.fotos[idx] === null) {
+            if (!mov.fotos[idx] || mov.fotos[idx] === null) {
               mov.fotos[idx] = url; if (idx === 0) mov.foto = url; alterou = true;
             }
           }
         }
         if (alterou) { localStorage.setItem('ibcdata2', JSON.stringify(data)); await saveToFirebase(); }
-        await _removerFotoPendente(storagePath);
+        await _removerFotoPendente(p.storagePath);
       }
-    } catch(e) {
-      console.warn(`Falha ao reenviar ${storagePath}:`, e);
-    }
+    } catch(e) { console.warn('Falha ao reenviar ' + p.storagePath + ':', e); }
   }
   setFotoUploadStatus('');
-  renderItems(); renderLocalidades();
+  try { renderItems(); } catch(e) {}
+  try { renderLocalidades(); } catch(e) {}
 }
+
+// Fila de uploads em background (mantida para compatibilidade)
+const _uploadQueue = [];
+let _uploading = false;
 
 // Redimensiona imagem para max 1024px usando canvas e retorna Blob (muito mais rápido que base64)
 function redimensionarParaBlob(file, maxPx = 1024, qualidade = 0.82) {
@@ -1217,21 +1227,6 @@ function redimensionarParaBlob(file, maxPx = 1024, qualidade = 0.82) {
   });
 }
 
-// Tenta upload com retry (3 tentativas com backoff)
-async function _uploadComRetry(blob, storagePath, tentativas = 3) {
-  for (let t = 1; t <= tentativas; t++) {
-    try {
-      const ref = storage.ref(storagePath);
-      await ref.put(blob, { contentType: 'image/jpeg' });
-      return await ref.getDownloadURL();
-    } catch(e) {
-      console.warn(`Upload tentativa ${t}/${tentativas} falhou (${storagePath}):`, e.message || e);
-      if (t < tentativas) await new Promise(r => setTimeout(r, 2000 * t)); // espera 2s, 4s...
-    }
-  }
-  return null; // todas as tentativas falharam
-}
-
 async function _processQueue() {
   if (_uploading || !_uploadQueue.length) return;
   _uploading = true;
@@ -1239,16 +1234,12 @@ async function _processQueue() {
   while (_uploadQueue.length) {
     const { file, storagePath, onDone } = _uploadQueue.shift();
     try {
+      // Redimensiona para Blob (sem passar por base64 — muito mais rápido)
       const blob = await redimensionarParaBlob(file);
-      const url = await _uploadComRetry(blob, storagePath, 3);
-      if (url) {
-        if (onDone) onDone(url);
-      } else {
-        // Todas as tentativas falharam — salva no IndexedDB para reenviar depois
-        console.warn(`⚠️ Upload falhou para ${storagePath} — guardando para reenvio automático`);
-        await _salvarFotoPendente(storagePath, blob);
-        setFotoUploadStatus('⚠️ Foto guardada para reenvio automático', 4000);
-      }
+      const ref = storage.ref(storagePath);
+      await ref.put(blob, { contentType: 'image/jpeg' });
+      const url = await ref.getDownloadURL();
+      if (url && onDone) onDone(url);
     } catch(e) {
       console.warn('Background upload error:', e);
     }
@@ -1333,26 +1324,20 @@ function save() {
 
 async function saveToFirebase() {
   try {
-    // Salva tudo normalmente — base64 comprimido é pequeno (~150KB) e fica como fallback
-    // até o upload em background substituir pela URL do Storage
-    await DOC_REF.set(data);
+    // NUNCA salvar base64 no Firestore — remove antes de enviar
+    // (base64 grande causa rejeição e derruba as fotos que ainda não subiram pro Storage)
+    const dataSemBase64 = JSON.parse(JSON.stringify(data));
+    dataSemBase64.ambientes = dataSemBase64.ambientes.map(a => ({...a, foto: (a.foto&&a.foto.startsWith('data:'))?null:a.foto}));
+    dataSemBase64.moveis    = dataSemBase64.moveis.map(m => ({...m,
+      foto: (m.foto&&m.foto.startsWith('data:'))?null:m.foto,
+      fotos: (m.fotos||[]).map(f=>(f&&f.startsWith('data:'))?null:f)
+    }));
+    dataSemBase64.items     = dataSemBase64.items.map(i => ({...i, foto: (i.foto&&i.foto.startsWith('data:'))?null:i.foto}));
+    await DOC_REF.set(dataSemBase64);
     setSyncIndicator('ok');
   } catch(e) {
-    // Se falhar por tamanho (base64 grande demais pro Firestore), tenta sem as fotos base64
-    try {
-      const dataSemBase64 = JSON.parse(JSON.stringify(data));
-      dataSemBase64.ambientes = dataSemBase64.ambientes.map(a => ({...a, foto: (a.foto&&a.foto.startsWith('data:'))?null:a.foto}));
-      dataSemBase64.moveis    = dataSemBase64.moveis.map(m => ({...m,
-        foto: (m.foto&&m.foto.startsWith('data:'))?null:m.foto,
-        fotos: (m.fotos||[]).map(f=>(f&&f.startsWith('data:'))?null:f).filter(Boolean)
-      }));
-      dataSemBase64.items     = dataSemBase64.items.map(i => ({...i, foto: (i.foto&&i.foto.startsWith('data:'))?null:i.foto}));
-      await DOC_REF.set(dataSemBase64);
-      setSyncIndicator('ok');
-    } catch(e2) {
-      console.warn('Firebase save error:', e2);
-      setSyncIndicator('error');
-    }
+    console.warn('Firebase save error:', e);
+    setSyncIndicator('error');
   }
 }
 
@@ -1380,7 +1365,6 @@ async function loadFromFirebase() {
           .some(x => (x.foto && x.foto.startsWith('data:')) ||
             (x.fotos && x.fotos.some(f => f && f.startsWith('data:'))));
         if (temBase64) setTimeout(() => syncFotosParaStorage(), 500);
-
         // Reenviar fotos que falharam em sessões anteriores
         setTimeout(() => reenviarFotosPendentes(), 1500);
       }
@@ -2043,14 +2027,20 @@ function salvarAmbiente() {
   };
 
   if (pendingFile) {
-    // Gera base64 comprimido como fallback imediato (persiste no Firestore enquanto upload sobe)
-    comprimirImagem(pendingFile).then(base64 => {
-      commitSave(base64);
-      closeModal('ambiente');
-      // Sobe em background e substitui pelo URL quando pronto
-      uploadFotoBackground(pendingFile, `ambientes/${ambId}`, url => {
-        const amb = data.ambientes.find(a => a.id === ambId);
-        if (amb && url) { amb.foto = url; save(); renderLocalidades(); }
+    // Faz upload para Storage ANTES de salvar — nunca salvar base64 no Firestore
+    setFotoUploadStatus('☁️ Enviando foto...');
+    redimensionarParaBlob(pendingFile).then(blob => {
+      _uploadComRetry(blob, `ambientes/${ambId}`, 3).then(url => {
+        setFotoUploadStatus('');
+        if (url) {
+          commitSave(url);
+        } else {
+          // Storage falhou — salva sem foto mas guarda pendente para reenvio
+          _salvarFotoPendente(`ambientes/${ambId}`, blob);
+          commitSave(null);
+          setFotoUploadStatus('⚠️ Foto guardada para reenvio automático', 4000);
+        }
+        closeModal('ambiente');
       });
     });
   } else {
@@ -2197,29 +2187,28 @@ function salvarMovel() {
   };
 
   if (pendingFiles.length) {
-    // Converte todos os ObjectURLs pendentes para base64 comprimido como fallback imediato
-    const fotosBase64 = [...movelFotosTemp];
+    // Upload para Storage ANTES de salvar — nunca salvar base64 no Firestore
+    setFotoUploadStatus('☁️ Enviando foto(s)...');
+    const fotosBase64 = [...movelFotosTemp]; // cópia dos ObjectURLs existentes
+    const urlsFinais = [...fotosBase64]; // resultado final (urls do Storage)
     let restantes = pendingFiles.length;
-    pendingFiles.forEach(p => {
-      comprimirImagem(p.file).then(base64 => {
-        fotosBase64[p.idx] = base64;
-        restantes--;
-        if (restantes === 0) {
-          commitSave(fotosBase64);
-          closeModal('movel');
-          // Upload em background
-          pendingFiles.forEach(pf => {
-            uploadFotoBackground(pf.file, `moveis/${movelId}/${pf.idx}`, url => {
-              const mov = data.moveis.find(m => m.id === movelId);
-              if (mov && url) {
-                if (mov.fotos && pf.idx < mov.fotos.length) mov.fotos[pf.idx] = url;
-                if (pf.idx === 0) mov.foto = url;
-                save();
-                if (navAmbienteId) abrirAmbiente(navAmbienteId);
-              }
-            });
-          });
-        }
+    pendingFiles.forEach(pf => {
+      redimensionarParaBlob(pf.file).then(blob => {
+        _uploadComRetry(blob, `moveis/${movelId}/${pf.idx}`, 3).then(url => {
+          if (url) {
+            urlsFinais[pf.idx] = url;
+          } else {
+            // Falhou — guarda pendente e deixa null
+            _salvarFotoPendente(`moveis/${movelId}/${pf.idx}`, blob);
+            urlsFinais[pf.idx] = null;
+          }
+          restantes--;
+          if (restantes === 0) {
+            setFotoUploadStatus('');
+            commitSave(urlsFinais.filter(u => u !== undefined));
+            closeModal('movel');
+          }
+        });
       });
     });
   } else {
@@ -2528,13 +2517,20 @@ function salvarItem() {
   };
 
   if (pendingFile) {
-    // Base64 comprimido como fallback imediato
-    comprimirImagem(pendingFile).then(base64 => {
-      commitSave(base64);
-      closeModal('item');
-      uploadFotoBackground(pendingFile, `items/${itemId}`, url => {
-        const item = data.items.find(i => i.id === itemId);
-        if (item && url) { item.foto = url; save(); renderItems(); }
+    // Upload para Storage ANTES de salvar — nunca salvar base64 no Firestore
+    setFotoUploadStatus('☁️ Enviando foto...');
+    redimensionarParaBlob(pendingFile).then(blob => {
+      _uploadComRetry(blob, `items/${itemId}`, 3).then(url => {
+        setFotoUploadStatus('');
+        if (url) {
+          commitSave(url);
+        } else {
+          // Storage falhou — guarda pendente e salva sem foto por enquanto
+          _salvarFotoPendente(`items/${itemId}`, blob);
+          commitSave(null);
+          setFotoUploadStatus('⚠️ Foto guardada para reenvio automático', 4000);
+        }
+        closeModal('item');
       });
     });
   } else {
