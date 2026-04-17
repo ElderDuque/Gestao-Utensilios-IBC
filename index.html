@@ -1309,15 +1309,17 @@ if (!data.emprestimos) data.emprestimos = [];
 if (!data.ocorrencias) data.ocorrencias = [];
 
 let saveTimeout = null;
+let _uploadEmAndamento = false; // trava o save enquanto foto está subindo
 
 function save() {
   // Salva localmente SEMPRE e imediatamente
   localStorage.setItem('ibcdata2', JSON.stringify(data));
+  // Se há upload em andamento, não salva no Firestore agora — ele vai salvar quando terminar
+  if (_uploadEmAndamento) return;
   // Envia para Firebase com debounce de 1 segundo
   clearTimeout(saveTimeout);
   saveTimeout = setTimeout(async () => {
     await saveToFirebase();
-    // Após salvar no Firestore, envia fotos base64 novas para o Storage
     syncFotosParaStorage();
   }, 1000);
 }
@@ -1325,7 +1327,6 @@ function save() {
 async function saveToFirebase() {
   try {
     // NUNCA salvar base64 no Firestore — remove antes de enviar
-    // (base64 grande causa rejeição e derruba as fotos que ainda não subiram pro Storage)
     const dataSemBase64 = JSON.parse(JSON.stringify(data));
     dataSemBase64.ambientes = dataSemBase64.ambientes.map(a => ({...a, foto: (a.foto&&a.foto.startsWith('data:'))?null:a.foto}));
     dataSemBase64.moveis    = dataSemBase64.moveis.map(m => ({...m,
@@ -1338,6 +1339,32 @@ async function saveToFirebase() {
   } catch(e) {
     console.warn('Firebase save error:', e);
     setSyncIndicator('error');
+  }
+}
+
+// Atualiza só a foto de um item/ambiente/movel no Firestore sem sobrescrever o documento inteiro
+async function salvarFotoNoFirestore(tipo, id, url, idxFoto) {
+  try {
+    // Atualiza também o objeto local em memória
+    if (tipo === 'items') {
+      const item = data.items.find(x => x.id === id);
+      if (item) item.foto = url;
+    } else if (tipo === 'ambientes') {
+      const amb = data.ambientes.find(x => x.id === id);
+      if (amb) amb.foto = url;
+    } else if (tipo === 'moveis') {
+      const mov = data.moveis.find(x => x.id === id);
+      if (mov) {
+        if (!mov.fotos) mov.fotos = [];
+        mov.fotos[idxFoto || 0] = url;
+        if ((idxFoto || 0) === 0) mov.foto = url;
+      }
+    }
+    localStorage.setItem('ibcdata2', JSON.stringify(data));
+    // Salva tudo no Firestore com a URL atualizada
+    await saveToFirebase();
+  } catch(e) {
+    console.warn('Erro ao salvar foto no Firestore:', e);
   }
 }
 
@@ -2008,10 +2035,9 @@ function salvarAmbiente() {
   const pendingFile = prevFotoAmb._pendingFile;
   prevFotoAmb._pendingFile = null;
 
-  // Foto atual (pode ser URL do Storage de foto já existente)
-  const preview = document.getElementById('ambFotoPreview');
-  let foto = (preview.src && !preview.src.startsWith('blob:') && preview.src !== window.location.href)
-    ? preview.src : null;
+  // Foto atual — lê do objeto data em memória (mais confiável que o src do DOM)
+  const ambExistente = id ? data.ambientes.find(a => a.id === id) : null;
+  let foto = ambExistente ? (ambExistente.foto || null) : null;
 
   const commitSave = (fotoFinal) => {
     const obj = { nome, emoji: document.getElementById('ambEmoji').value.trim()||'🏠',
@@ -2027,15 +2053,16 @@ function salvarAmbiente() {
   };
 
   if (pendingFile) {
-    // Faz upload para Storage ANTES de salvar — nunca salvar base64 no Firestore
+    // Faz upload para Storage ANTES de salvar — trava o save para ninguém sobrescrever
+    _uploadEmAndamento = true;
     setFotoUploadStatus('☁️ Enviando foto...');
     redimensionarParaBlob(pendingFile).then(blob => {
       _uploadComRetry(blob, `ambientes/${ambId}`, 3).then(url => {
+        _uploadEmAndamento = false;
         setFotoUploadStatus('');
         if (url) {
           commitSave(url);
         } else {
-          // Storage falhou — salva sem foto mas guarda pendente para reenvio
           _salvarFotoPendente(`ambientes/${ambId}`, blob);
           commitSave(null);
           setFotoUploadStatus('⚠️ Foto guardada para reenvio automático', 4000);
@@ -2189,21 +2216,23 @@ function salvarMovel() {
   if (pendingFiles.length) {
     // Upload para Storage ANTES de salvar — nunca salvar base64 no Firestore
     setFotoUploadStatus('☁️ Enviando foto(s)...');
-    const fotosBase64 = [...movelFotosTemp]; // cópia dos ObjectURLs existentes
-    const urlsFinais = [...fotosBase64]; // resultado final (urls do Storage)
+    const fotosBase64 = [...movelFotosTemp];
+    const urlsFinais = [...fotosBase64];
     let restantes = pendingFiles.length;
+    _uploadEmAndamento = true;
+    setFotoUploadStatus('☁️ Enviando foto(s)...');
     pendingFiles.forEach(pf => {
       redimensionarParaBlob(pf.file).then(blob => {
         _uploadComRetry(blob, `moveis/${movelId}/${pf.idx}`, 3).then(url => {
           if (url) {
             urlsFinais[pf.idx] = url;
           } else {
-            // Falhou — guarda pendente e deixa null
             _salvarFotoPendente(`moveis/${movelId}/${pf.idx}`, blob);
             urlsFinais[pf.idx] = null;
           }
           restantes--;
           if (restantes === 0) {
+            _uploadEmAndamento = false;
             setFotoUploadStatus('');
             commitSave(urlsFinais.filter(u => u !== undefined));
             closeModal('movel');
@@ -2467,11 +2496,9 @@ function salvarItem() {
   const pendingFile = pendingFiles['itemFotoPreview'];
   if (pendingFile) delete pendingFiles['itemFotoPreview'];
 
-  // Foto existente (URL do Storage) — não é blob nem base64 pendente
-  const previewEl = document.getElementById('itemFotoPreview');
-  const fotoExistente = (previewEl && previewEl.src &&
-    !previewEl.src.startsWith('blob:') && previewEl.src !== window.location.href)
-    ? previewEl.src : null;
+  // Foto existente — lê do objeto data em memória (mais confiável que o src do DOM)
+  const itemExistente = id ? data.items.find(x => x.id === id) : null;
+  const fotoExistente = itemExistente ? (itemExistente.foto || null) : null;
 
   const ambId   = locTipo !== 'avulso' ? document.getElementById('itemAmbId').value : '';
   const movelId = locTipo === 'movel'  ? document.getElementById('itemMovelId').value : '';
@@ -2517,15 +2544,16 @@ function salvarItem() {
   };
 
   if (pendingFile) {
-    // Upload para Storage ANTES de salvar — nunca salvar base64 no Firestore
+    // Upload para Storage ANTES de salvar — trava o save para ninguém sobrescrever
+    _uploadEmAndamento = true;
     setFotoUploadStatus('☁️ Enviando foto...');
     redimensionarParaBlob(pendingFile).then(blob => {
       _uploadComRetry(blob, `items/${itemId}`, 3).then(url => {
+        _uploadEmAndamento = false;
         setFotoUploadStatus('');
         if (url) {
           commitSave(url);
         } else {
-          // Storage falhou — guarda pendente e salva sem foto por enquanto
           _salvarFotoPendente(`items/${itemId}`, blob);
           commitSave(null);
           setFotoUploadStatus('⚠️ Foto guardada para reenvio automático', 4000);
