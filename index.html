@@ -1150,11 +1150,16 @@ async function _uploadComRetry(blob, storagePath, tentativas) {
   tentativas = tentativas || 3;
   for (var t = 1; t <= tentativas; t++) {
     try {
+      setFotoUploadStatus('☁️ Tentativa ' + t + '/' + tentativas + '...');
       var ref = storage.ref(storagePath);
       await ref.put(blob, { contentType: 'image/jpeg' });
-      return await ref.getDownloadURL();
+      var url = await ref.getDownloadURL();
+      setFotoUploadStatus('✅ Upload OK!', 2000);
+      return url;
     } catch(e) {
-      console.warn('Upload tentativa ' + t + '/' + tentativas + ' falhou (' + storagePath + '):', e.message || e);
+      var msg = e.code || e.message || String(e);
+      console.warn('Upload tentativa ' + t + '/' + tentativas + ' falhou (' + storagePath + '):', msg);
+      setFotoUploadStatus('⚠️ Tentativa ' + t + ' falhou: ' + msg, 0);
       if (t < tentativas) await new Promise(function(r) { setTimeout(r, 2000 * t); });
     }
   }
@@ -2053,22 +2058,33 @@ function salvarAmbiente() {
   };
 
   if (pendingFile) {
-    // Faz upload para Storage ANTES de salvar — trava o save para ninguém sobrescrever
     _uploadEmAndamento = true;
-    setFotoUploadStatus('☁️ Enviando foto...');
+    setFotoUploadStatus('☁️ Enviando foto... (pode levar até 30s)');
     redimensionarParaBlob(pendingFile).then(blob => {
+      setFotoUploadStatus('☁️ Foto redimensionada, enviando...');
       _uploadComRetry(blob, `ambientes/${ambId}`, 3).then(url => {
         _uploadEmAndamento = false;
-        setFotoUploadStatus('');
         if (url) {
+          setFotoUploadStatus('✅ Foto salva!', 3000);
           commitSave(url);
         } else {
           _salvarFotoPendente(`ambientes/${ambId}`, blob);
           commitSave(null);
-          setFotoUploadStatus('⚠️ Foto guardada para reenvio automático', 4000);
+          setFotoUploadStatus('⚠️ Foto guardada para reenvio automático', 5000);
         }
         closeModal('ambiente');
+      }).catch(err => {
+        _uploadEmAndamento = false;
+        setFotoUploadStatus('❌ Erro no upload: ' + (err.message||err), 8000);
+        _salvarFotoPendente(`ambientes/${ambId}`, blob);
+        commitSave(null);
+        closeModal('ambiente');
       });
+    }).catch(err => {
+      _uploadEmAndamento = false;
+      setFotoUploadStatus('❌ Erro ao processar foto: ' + (err.message||err), 8000);
+      commitSave(null);
+      closeModal('ambiente');
     });
   } else {
     commitSave(foto);
@@ -2233,7 +2249,17 @@ function salvarMovel() {
           restantes--;
           if (restantes === 0) {
             _uploadEmAndamento = false;
-            setFotoUploadStatus('');
+            setFotoUploadStatus('✅ Foto(s) salva(s)!', 3000);
+            commitSave(urlsFinais.filter(u => u !== undefined));
+            closeModal('movel');
+          }
+        }).catch(err => {
+          _salvarFotoPendente(`moveis/${movelId}/${pf.idx}`, blob);
+          urlsFinais[pf.idx] = null;
+          restantes--;
+          if (restantes === 0) {
+            _uploadEmAndamento = false;
+            setFotoUploadStatus('❌ Erro no upload: ' + (err.message||err), 8000);
             commitSave(urlsFinais.filter(u => u !== undefined));
             closeModal('movel');
           }
@@ -2546,20 +2572,32 @@ function salvarItem() {
   if (pendingFile) {
     // Upload para Storage ANTES de salvar — trava o save para ninguém sobrescrever
     _uploadEmAndamento = true;
-    setFotoUploadStatus('☁️ Enviando foto...');
+    setFotoUploadStatus('☁️ Enviando foto... (pode levar até 30s)');
     redimensionarParaBlob(pendingFile).then(blob => {
+      setFotoUploadStatus('☁️ Foto redimensionada, enviando...');
       _uploadComRetry(blob, `items/${itemId}`, 3).then(url => {
         _uploadEmAndamento = false;
-        setFotoUploadStatus('');
         if (url) {
+          setFotoUploadStatus('✅ Foto salva!', 3000);
           commitSave(url);
         } else {
           _salvarFotoPendente(`items/${itemId}`, blob);
           commitSave(null);
-          setFotoUploadStatus('⚠️ Foto guardada para reenvio automático', 4000);
+          setFotoUploadStatus('⚠️ Foto guardada para reenvio automático', 5000);
         }
         closeModal('item');
+      }).catch(err => {
+        _uploadEmAndamento = false;
+        setFotoUploadStatus('❌ Erro no upload: ' + (err.message||err), 8000);
+        _salvarFotoPendente(`items/${itemId}`, blob);
+        commitSave(null);
+        closeModal('item');
       });
+    }).catch(err => {
+      _uploadEmAndamento = false;
+      setFotoUploadStatus('❌ Erro ao processar foto: ' + (err.message||err), 8000);
+      commitSave(null);
+      closeModal('item');
     });
   } else {
     commitSave(fotoExistente);
