@@ -1684,11 +1684,13 @@ function abrirMovel(id) {
   // Itens sem posição definida
   if (itensSemPos.length) {
     const posId = 'pos_sempos_' + id;
+    const isCaixa = (mov.tipo === 'caixa' || mov.tipo === 'organizador');
+    const labelSemPos = isCaixa ? '📦 Dentro da caixa / grade' : '📋 Sem posição definida';
     html += `<div class="posicao-row">
       <button class="posicao-btn" onclick="togglePosicao('${posId}',this)">
         <div class="posicao-btn-esq">
-          <span class="posicao-btn-icone">📋</span>
-          <span class="posicao-btn-nome">Sem posição definida</span>
+          <span class="posicao-btn-icone">${isCaixa ? '📦' : '📋'}</span>
+          <span class="posicao-btn-nome">${isCaixa ? 'Dentro da caixa / grade' : 'Sem posição definida'}</span>
         </div>
         <div class="posicao-btn-dir">
           <span class="posicao-badge">${itensSemPos.length} item${itensSemPos.length>1?'s':''}</span>
@@ -1846,6 +1848,21 @@ function onMovelTipoChange() {
   const wrapPortas = document.getElementById('wrap-portas');
   // Mostra seção de portas só para armário e gaveteiro
   wrapPortas.style.display = (tipo === 'armário' || tipo === 'gaveta') ? 'block' : 'none';
+
+  // Para caixa/grade: sugere "Dentro" como posição padrão se o campo estiver vazio ou com placeholder de armário
+  const posEl = document.getElementById('movelPosicoes');
+  const isCaixa = (tipo === 'caixa' || tipo === 'organizador');
+  const isArmario = (tipo === 'armário' || tipo === 'gaveta' || tipo === 'estante');
+  const valorAtual = posEl.value.trim();
+  const padraoArmario = 'Prateleira superior\nPrateleira do meio\nPrateleira inferior\nTopo';
+  const padraoCaixa = 'Dentro';
+
+  // Só muda automaticamente se o usuário não digitou nada personalizado
+  if (isCaixa && (valorAtual === '' || valorAtual === padraoArmario)) {
+    posEl.value = padraoCaixa;
+  } else if (isArmario && (valorAtual === '' || valorAtual === padraoCaixa)) {
+    posEl.value = padraoArmario;
+  }
 }
 
 function togglePortas() {
@@ -1937,6 +1954,11 @@ function salvarMovel() {
   const nome = document.getElementById('movelNome').value.trim();
   if (!nome) { alert('Informe o nome!'); return; }
   const posicoes = document.getElementById('movelPosicoes').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  const tipoMovel = document.getElementById('movelTipo').value;
+  // Caixas e grades sem posição cadastrada ganham "Dentro" automaticamente
+  const posicoesFinal = posicoes.length === 0 && (tipoMovel === 'caixa' || tipoMovel === 'organizador')
+    ? ['Dentro']
+    : posicoes;
   const ambId = document.getElementById('movelAmbienteId').value;
   const id = document.getElementById('editMovelId').value;
   const movelId = id || ('M' + Date.now());
@@ -1952,7 +1974,7 @@ function salvarMovel() {
       ? document.getElementById('movelDivisoriasPorPorta').value.split('\n').map(s=>s.trim()).filter(Boolean)
       : [];
     const obj = { nome, tipo:document.getElementById('movelTipo').value,
-      cor:document.getElementById('movelCor').value.trim(), posicoes, ambId, foto, fotos,
+      cor:document.getElementById('movelCor').value.trim(), posicoes:posicoesFinal, ambId, foto, fotos,
       portas, divisoriasPorPorta };
     if (id) {
       const i = data.moveis.findIndex(m=>m.id===id);
