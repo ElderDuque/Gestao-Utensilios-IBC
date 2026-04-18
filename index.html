@@ -880,9 +880,9 @@ Topo</textarea>
         </button>
       </div>
 
-      <!-- Ambiente (aparece em movel e montado) -->
+      <!-- Ambiente (aparece em todos exceto avulso sem ambiente) -->
       <div class="form-group" id="wrap-amb" style="margin-bottom:10px">
-        <label>Ambiente</label>
+        <label id="wrap-amb-label">Ambiente</label>
         <select id="itemAmbId" onchange="atualizarMoveis()">
           <option value="">— Selecionar ambiente —</option>
         </select>
@@ -890,13 +890,13 @@ Topo</textarea>
 
       <!-- Móvel + Posição (só no modo movel) -->
       <div class="form-group" id="wrap-movel" style="display:none;margin-bottom:10px">
-        <label>🗄️ Móvel</label>
+        <label>🗄️ Móvel / Caixa / Grade</label>
         <select id="itemMovelId" onchange="atualizarPosicoes()">
-          <option value="">— Selecionar móvel —</option>
+          <option value="">— Selecionar —</option>
         </select>
       </div>
       <div class="form-group" id="wrap-posicao" style="display:none;margin-bottom:10px">
-        <label>📦 Posição</label>
+        <label>📦 Posição / Divisória</label>
         <select id="itemPosicao" onchange="atualizarCaixas()">
           <option value="">— Selecionar posição —</option>
         </select>
@@ -921,9 +921,10 @@ Topo</textarea>
         </div>
       </div>
 
+      <!-- Campo livre de localização — aparece em todos os modos -->
       <div class="form-group" style="margin-bottom:0">
-        <label>📝 Obs. de localização</label>
-        <input type="text" id="itemLocObs" placeholder="Ex: fundo da prateleira, caixa azul...">
+        <label id="itemLocObsLabel">📝 Obs. de localização</label>
+        <input type="text" id="itemLocObs" placeholder="Ex: em cima do armário, preso na parede, gaveta de baixo...">
       </div>
     </div>
     <div class="form-group">
@@ -1110,7 +1111,7 @@ async function saveToFirebase() {
   } catch(e) {
     console.warn('Firebase save error:', e);
     setSyncIndicator('error');
-    alert('⚠️ Erro ao salvar: ' + (e.message || e) + '\n\nSeus dados estão salvos localmente. Tente de novo quando a conexão melhorar.');
+    alert('⚠️ Erro ao salvar: ' + (e.message || e) + '\n\nSeus dados estão salvos localmente.');
   }
 }
 
@@ -2006,21 +2007,40 @@ function setLocTipo(tipo) {
     btn.style.borderColor = ativo ? 'var(--gold)' : 'var(--border)';
     btn.style.color = ativo ? 'var(--gold-light)' : 'rgba(255,255,255,0.6)';
   });
-  document.getElementById('wrap-amb').style.display    = tipo === 'avulso' ? 'none' : 'block';
-  document.getElementById('wrap-movel').style.display  = tipo === 'movel'  ? 'block' : 'none';
+
+  // Ambiente: aparece sempre, mas label muda no avulso
+  document.getElementById('wrap-amb').style.display = 'block';
+  const ambLabel = document.getElementById('wrap-amb-label');
+  if (tipo === 'avulso') {
+    ambLabel.textContent = 'Ambiente (opcional)';
+  } else {
+    ambLabel.textContent = 'Ambiente';
+  }
+
+  // Móvel: só no modo movel
+  document.getElementById('wrap-movel').style.display  = tipo === 'movel' ? 'block' : 'none';
   document.getElementById('wrap-posicao').style.display = 'none';
+
+  // Obs label muda no avulso
+  const obsLabel = document.getElementById('itemLocObsLabel');
+  if (tipo === 'avulso') {
+    obsLabel.textContent = '📝 Onde está? (ex: em cima do armário, preso na parede...)';
+    document.getElementById('itemLocObs').placeholder = 'Ex: em cima do armário, preso na parede, gaveta de baixo...';
+  } else {
+    obsLabel.textContent = '📝 Obs. de localização (opcional)';
+    document.getElementById('itemLocObs').placeholder = 'Ex: fundo da prateleira, caixa azul...';
+  }
+
   // Limpa seleções ao trocar tipo
   if (tipo !== 'movel') {
     document.getElementById('itemMovelId').value = '';
-  document.getElementById('itemCaixaId').value = '';
-  document.getElementById('itemPosicaoCaixa').value = '';
-  document.getElementById('wrap-caixa').style.display = 'none';
-  document.getElementById('wrap-posicao-caixa').style.display = 'none';
+    document.getElementById('itemCaixaId').value = '';
+    document.getElementById('itemPosicaoCaixa').value = '';
+    document.getElementById('wrap-caixa').style.display = 'none';
+    document.getElementById('wrap-posicao-caixa').style.display = 'none';
     document.getElementById('itemPosicao').value = '';
   }
-  if (tipo === 'avulso') {
-    document.getElementById('itemAmbId').value = '';
-  }
+
   // Guarda tipo atual num campo oculto
   document.getElementById('itemLocTipo').value = tipo;
 }
@@ -2123,9 +2143,10 @@ function atualizarMoveis() {
   const wrap = document.getElementById('wrap-movel');
   const sel = document.getElementById('itemMovelId');
   if (!ambId || tipo !== 'movel') { wrap.style.display='none'; document.getElementById('wrap-posicao').style.display='none'; return; }
+  // Mostra TODOS os móveis do ambiente — armários, caixas, grades, prateleiras, etc.
   const moveis = data.moveis.filter(m=>m.ambId===ambId);
-  sel.innerHTML = '<option value="">— Selecionar móvel —</option>' +
-    moveis.map(m=>`<option value="${m.id}">${movelEmoji[m.tipo]||'🗄️'} ${m.nome}</option>`).join('');
+  sel.innerHTML = '<option value="">— Selecionar móvel / caixa / grade —</option>' +
+    moveis.map(m=>`<option value="${m.id}">${movelEmoji[m.tipo]||'🗄️'} ${m.nome}${m.cor?' · '+m.cor:''}</option>`).join('');
   wrap.style.display = moveis.length ? 'block' : 'none';
   document.getElementById('wrap-posicao').style.display='none';
   document.getElementById('wrap-caixa').style.display='none';
@@ -2237,7 +2258,8 @@ function salvarItem() {
   const itemExistente = id ? data.items.find(x => x.id === id) : null;
   const fotoExistente = itemExistente ? (itemExistente.foto || null) : null;
 
-  const ambId   = locTipo !== 'avulso' ? document.getElementById('itemAmbId').value : '';
+  // ambId agora é salvo em todos os modos (inclusive avulso, onde é opcional)
+  const ambId   = document.getElementById('itemAmbId').value || '';
   const movelId = locTipo === 'movel'  ? document.getElementById('itemMovelId').value : '';
   const posicao = locTipo === 'movel'  ? document.getElementById('itemPosicao').value : '';
   const caixaId = locTipo === 'movel'  ? (document.getElementById('itemCaixaId').value || '') : '';
