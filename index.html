@@ -1062,16 +1062,14 @@ const db = firebase.firestore();
 const DOC_REF = db.collection('ibc').doc('dados');
 
 // ── Compressão de foto para base64 (salvo direto no Firestore) ─────────────
-// Sem Firebase Storage — fotos ficam como base64 comprimido no próprio banco
-
-// Comprime imagem para max 800px / qualidade 0.7 → ~80-120KB
+// Comprime para max 500px / qualidade 0.6 → ~40-70KB por foto
 function comprimirFotoParaBase64(file) {
   return new Promise(function(resolve) {
     var img = new Image();
     var objectUrl = URL.createObjectURL(file);
     img.onload = function() {
       URL.revokeObjectURL(objectUrl);
-      var MAX = 800, w = img.width, h = img.height;
+      var MAX = 500, w = img.width, h = img.height;
       if (w > MAX || h > MAX) {
         if (w >= h) { h = Math.round(h * MAX / w); w = MAX; }
         else        { w = Math.round(w * MAX / h); h = MAX; }
@@ -1079,7 +1077,7 @@ function comprimirFotoParaBase64(file) {
       var canvas = document.createElement('canvas');
       canvas.width = w; canvas.height = h;
       canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-      resolve(canvas.toDataURL('image/jpeg', 0.7));
+      resolve(canvas.toDataURL('image/jpeg', 0.6));
     };
     img.onerror = function() { URL.revokeObjectURL(objectUrl); resolve(null); };
     img.src = objectUrl;
@@ -1110,18 +1108,9 @@ async function saveToFirebase() {
     await DOC_REF.set(data);
     setSyncIndicator('ok');
   } catch(e) {
-    // Se falhar por documento muito grande, tenta sem as fotos de móveis (mantém itens e ambientes)
-    try {
-      const dataReduzido = JSON.parse(JSON.stringify(data));
-      dataReduzido.moveis = dataReduzido.moveis.map(m => ({...m,
-        fotos: (m.fotos||[]).map((f,i) => i === 0 ? f : null).filter(Boolean)
-      }));
-      await DOC_REF.set(dataReduzido);
-      setSyncIndicator('ok');
-    } catch(e2) {
-      console.warn('Firebase save error:', e2);
-      setSyncIndicator('error');
-    }
+    console.warn('Firebase save error:', e);
+    setSyncIndicator('error');
+    alert('⚠️ Erro ao salvar: ' + (e.message || e) + '\n\nSeus dados estão salvos localmente. Tente de novo quando a conexão melhorar.');
   }
 }
 
