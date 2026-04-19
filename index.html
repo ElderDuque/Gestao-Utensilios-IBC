@@ -1199,6 +1199,71 @@ async function salvarFotoNoFirestore(tipo, id, url, idxFoto) {
   }
 }
 
+// ── Recuperação de fotos base64 do localStorage → Cloudinary ──────────────
+// Roda uma vez ao abrir: detecta fotos base64 no cache local e sobe pro Cloudinary
+async function recuperarFotosLocais() {
+  const local = JSON.parse(localStorage.getItem('ibcdata2') || '{}');
+  const temBase64 = arr => (arr||[]).some(x =>
+    (x.foto && x.foto.startsWith('data:')) ||
+    ((x.fotos||[]).some(f => f && f.startsWith('data:')))
+  );
+  if (!temBase64(local.items) && !temBase64(local.ambientes) && !temBase64(local.moveis)) return;
+
+  console.log('🔄 Recuperando fotos base64 locais para Cloudinary...');
+  setSyncIndicator('saving');
+  let alterou = false;
+
+  for (const item of (local.items||[])) {
+    if (item.foto && item.foto.startsWith('data:')) {
+      const blob = await fetch(item.foto).then(r=>r.blob());
+      const url = await uploadParaCloudinary(new File([blob],'foto.jpg',{type:'image/jpeg'}));
+      if (url) { item.foto = url; alterou = true; }
+    }
+  }
+  for (const amb of (local.ambientes||[])) {
+    if (amb.foto && amb.foto.startsWith('data:')) {
+      const blob = await fetch(amb.foto).then(r=>r.blob());
+      const url = await uploadParaCloudinary(new File([blob],'foto.jpg',{type:'image/jpeg'}));
+      if (url) { amb.foto = url; alterou = true; }
+    }
+  }
+  for (const mov of (local.moveis||[])) {
+    if (mov.foto && mov.foto.startsWith('data:')) {
+      const blob = await fetch(mov.foto).then(r=>r.blob());
+      const url = await uploadParaCloudinary(new File([blob],'foto.jpg',{type:'image/jpeg'}));
+      if (url) { mov.foto = url; if (!mov.fotos) mov.fotos=[]; mov.fotos[0]=url; alterou = true; }
+    }
+    for (let i=0; i<(mov.fotos||[]).length; i++) {
+      if (mov.fotos[i] && mov.fotos[i].startsWith('data:')) {
+        const blob = await fetch(mov.fotos[i]).then(r=>r.blob());
+        const url = await uploadParaCloudinary(new File([blob],'foto.jpg',{type:'image/jpeg'}));
+        if (url) { mov.fotos[i]=url; if(i===0)mov.foto=url; alterou=true; }
+      }
+    }
+  }
+
+  if (alterou) {
+    // Mescla fotos recuperadas com o data atual (que pode ter vindo do Firestore sem fotos)
+    (data.items||[]).forEach(item => {
+      const l = local.items.find(x=>x.id===item.id);
+      if (l && l.foto && !l.foto.startsWith('data:')) item.foto = l.foto;
+    });
+    (data.ambientes||[]).forEach(amb => {
+      const l = local.ambientes.find(x=>x.id===amb.id);
+      if (l && l.foto && !l.foto.startsWith('data:')) amb.foto = l.foto;
+    });
+    (data.moveis||[]).forEach(mov => {
+      const l = local.moveis.find(x=>x.id===mov.id);
+      if (l && l.foto && !l.foto.startsWith('data:')) { mov.foto=l.foto; mov.fotos=l.fotos; }
+    });
+    localStorage.setItem('ibcdata2', JSON.stringify(data));
+    await saveToFirebase();
+    popularSelectAmbientes(); executarBusca();
+    setSyncIndicator('ok');
+    console.log('✅ Fotos recuperadas e salvas no Cloudinary!');
+  }
+}
+
 async function loadFromFirebase() {
   try {
     const doc = await DOC_REF.get();
@@ -1217,9 +1282,11 @@ async function loadFromFirebase() {
         popularSelectAmbientes();
         executarBusca();
         setSyncIndicator('ok');
+
+        // Tenta recuperar fotos base64 que ainda estejam no localStorage
+        setTimeout(() => recuperarFotosLocais(), 1000);
       }
     } else {
-      // Primeira vez — envia dados locais para nuvem
       if (data.items.length > 0 || data.ambientes.length > 0) {
         await saveToFirebase();
       }
